@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react';
 import { COLUMNS, Category, RecordRow } from '../api/records';
 import { PermissionsOut, patchRecord } from '../api/permissions';
+import StatusDot from './StatusDot';
+
+const STATUS_FIELDS = new Set(['renewal_status', 'issuance_status']);
 
 interface Props {
   categories: Category[];
@@ -217,6 +220,19 @@ export default function RecordsTable({ categories, recordsByCategory, permission
                         style={{ width: c.width, maxWidth: c.width }}
                       >
                         {r.id}
+                      </td>
+                    );
+                  }
+                  // 狀態燈：圓點顯示，不可編
+                  if (STATUS_FIELDS.has(field)) {
+                    const v = (r as unknown as { [k: string]: string | null })[field];
+                    return (
+                      <td
+                        key={field}
+                        className="px-2 py-1 border border-slate-200 text-center"
+                        style={{ width: c.width, maxWidth: c.width }}
+                      >
+                        <StatusDot value={v} />
                       </td>
                     );
                   }

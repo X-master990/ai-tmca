@@ -9,16 +9,20 @@ from sqlalchemy import text
 from app.api.auth import router as auth_router
 from app.api.categories import router as categories_router
 from app.api.records import router as records_router
+from app.api.renewals import router as renewals_router
 from app.config import settings
 from app.database import engine
+from app.services.scheduler import start_scheduler, stop_scheduler
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     print(f"[TMCA] Starting up. DB: {settings.database_url.split('@')[-1]}")
+    start_scheduler()
     yield
     # Shutdown
+    stop_scheduler()
     print("[TMCA] Shutting down.")
 
 
@@ -45,6 +49,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(categories_router)
 app.include_router(records_router)
+app.include_router(renewals_router)
 
 
 @app.get("/api/health")

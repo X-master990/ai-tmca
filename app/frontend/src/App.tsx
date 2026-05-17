@@ -3,6 +3,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Records from './pages/Records';
+import Renewals from './pages/Renewals';
 
 export default function App() {
   return (
@@ -21,6 +22,14 @@ export default function App() {
         element={
           <ProtectedRoute>
             <Records />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/renewals"
+        element={
+          <ProtectedRoute>
+            <Renewals />
           </ProtectedRoute>
         }
       />

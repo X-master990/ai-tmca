@@ -35,12 +35,20 @@ export default function Home() {
           </button>
         </div>
 
-        <button
-          onClick={() => navigate('/records')}
-          className="w-full bg-navy text-white py-3 rounded-lg font-medium hover:bg-teal transition mb-6 text-base"
-        >
-          📊 進入總表
-        </button>
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <button
+            onClick={() => navigate('/records')}
+            className="bg-navy text-white py-3 rounded-lg font-medium hover:bg-teal transition text-base"
+          >
+            📊 進入總表
+          </button>
+          <button
+            onClick={() => navigate('/renewals')}
+            className="bg-white border border-navy text-navy py-3 rounded-lg font-medium hover:bg-cyan transition text-base"
+          >
+            🔁 續約管理
+          </button>
+        </div>
 
         <div className="border-t border-slate-200 pt-6 space-y-2 text-sm">
           <div className="flex justify-between">
