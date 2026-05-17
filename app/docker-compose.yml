@@ -1,0 +1,67 @@
+# TMCA 音樂版權授權系統 — Docker Compose
+# 4 個 service：caddy (reverse proxy) + frontend (React SPA) + backend (FastAPI) + db (Postgres)
+
+services:
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: tmca-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+      - backend
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: tmca-frontend
+    expose:
+      - "80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+    container_name: tmca-backend
+    expose:
+      - "8000"
+    env_file:
+      - .env
+    volumes:
+      - tmca_files:/var/tmca
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:15-alpine
+    container_name: tmca-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-tmca}
+      POSTGRES_USER: ${POSTGRES_USER:-tmca}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"  # 開發時方便外部連線；上線可關閉
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tmca} -d ${POSTGRES_DB:-tmca}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:
+  tmca_files:
+  pg_data:

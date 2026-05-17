@@ -1,0 +1,20 @@
+# 本機開發：用 :80 + http
+# 上線部署：改成 tmca.yourdomain.tw（Caddy 會自動申請 Let's Encrypt 憑證）
+:80 {
+    encode gzip
+
+    # 後端 API
+    handle /api/* {
+        reverse_proxy backend:8000
+    }
+
+    # 前端 SPA（含 React Router fallback）
+    handle {
+        reverse_proxy frontend:80
+    }
+
+    log {
+        output stdout
+        format console
+    }
+}

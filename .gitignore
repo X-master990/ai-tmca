@@ -1,0 +1,32 @@
+# Word lock files
+~$*
+
+# macOS
+.DS_Store
+
+# Env
+.env
+*.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# Node
+node_modules/
+dist/
+build/
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# Docker / local data
+pg_data/
+caddy_data/
+tmca_files/

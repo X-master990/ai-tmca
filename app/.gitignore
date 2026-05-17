@@ -1,0 +1,31 @@
+# Env
+.env
+*.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# Node
+node_modules/
+dist/
+build/
+*.log
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
+
+# Local data
+pg_data/
+caddy_data/
+tmca_files/
+
+# Output
+*.docx.tmp
+*.xlsx.tmp

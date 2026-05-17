@@ -1,0 +1,1774 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>TMCA 音樂版權授權系統 — UI/UX 原型 v1</title>
+<meta name="viewport" content="width=1280">
+
+<!-- Tailwind via CDN -->
+<script src="https://cdn.tailwindcss.com"></script>
+
+<!-- Handsontable (Excel-like grid) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable@14.6.1/dist/handsontable.full.min.css">
+<script src="https://cdn.jsdelivr.net/npm/handsontable@14.6.1/dist/handsontable.full.min.js"></script>
+
+<!-- Noto Sans TC for 繁體中文 -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        navy:  '#0F3057',
+        teal:  '#008891',
+        cyan:  '#E0F0F2',
+        cream: '#FDF4E3',
+        gold:  '#C5832B',
+        ok:    '#27ae60',
+        warn:  '#C0392B',
+        ink:   '#1A1A2E',
+        soft:  '#3D3D52',
+      },
+      fontFamily: {
+        sans: ['"Noto Sans TC"', 'system-ui', 'sans-serif'],
+      }
+    }
+  }
+}
+</script>
+
+<style>
+  body { font-family: "Noto Sans TC", system-ui, sans-serif; }
+  /* Status light pill */
+  .pill { display:inline-flex; align-items:center; gap:6px; padding:2px 10px; border-radius:999px; font-size:12px; font-weight:500; }
+  .pill::before { content:""; width:8px; height:8px; border-radius:50%; }
+  .pill-red  { background:#FFEAEA; color:#C0392B; } .pill-red::before  { background:#C0392B; }
+  .pill-green{ background:#E8F8F0; color:#27ae60; } .pill-green::before{ background:#27ae60; }
+  .pill-gray { background:#F3F4F6; color:#6B7280; } .pill-gray::before { background:#9CA3AF; }
+  .pill-gold { background:#FDF4E3; color:#C5832B; } .pill-gold::before { background:#C5832B; }
+  /* Sidebar nav */
+  .nav-item { display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:8px; color:#475569; font-size:14px; cursor:pointer; transition:all .15s; }
+  .nav-item:hover { background:#EEF2F7; color:#0F3057; }
+  .nav-item.active { background:#0F3057; color:white; font-weight:500; }
+  .nav-section { font-size:11px; font-weight:600; color:#94a3b8; text-transform:uppercase; letter-spacing:0.05em; padding:8px 14px; margin-top:12px; }
+  /* Category tabs */
+  .cat-tab { padding:8px 14px; font-size:13px; color:#475569; cursor:pointer; border-bottom:2px solid transparent; transition:all .15s; white-space:nowrap; }
+  .cat-tab:hover { color:#0F3057; }
+  .cat-tab.active { color:#008891; border-color:#008891; font-weight:500; }
+  /* Buttons */
+  .btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:6px; font-size:13px; font-weight:500; cursor:pointer; transition:all .15s; }
+  .btn-primary { background:#0F3057; color:white; }
+  .btn-primary:hover { background:#1A4A7D; }
+  .btn-teal    { background:#008891; color:white; }
+  .btn-teal:hover { background:#00A8B5; }
+  .btn-ghost   { background:transparent; color:#0F3057; border:1px solid #CBD5E1; }
+  .btn-ghost:hover { background:#F8FAFC; }
+  /* Handsontable look */
+  .handsontable { font-family: "Noto Sans TC", sans-serif !important; font-size:13px !important; }
+  .handsontable th { background:#F1F5F9 !important; color:#1A1A2E !important; font-weight:600 !important; }
+  .htCore tbody tr:hover td { background-color:#F8FAFC !important; }
+  .status-cell-red    { background:#FFEAEA !important; color:#C0392B !important; font-weight:500; text-align:center; }
+  .status-cell-green  { background:#E8F8F0 !important; color:#27ae60 !important; font-weight:500; text-align:center; }
+  /* Modal */
+  .modal-backdrop { position:fixed; inset:0; background:rgba(15,48,87,0.45); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; z-index:50; }
+  /* Scrollbar */
+  ::-webkit-scrollbar { width:8px; height:8px; }
+  ::-webkit-scrollbar-thumb { background:#CBD5E1; border-radius:4px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+
+  /* Editable invoice row */
+  #invoiceTable td { padding: 6px 8px; vertical-align: middle; }
+  #invoiceTable td.editable { background: #FAFBFC; cursor: text; }
+  #invoiceTable td.editable:hover { background: #F0F9FF; }
+  #invoiceTable td.editable:focus { background: white; outline: 2px solid #008891; }
+  #invoiceTable .row-controls { opacity: 0; transition: opacity .15s; }
+  #invoiceTable tr:hover .row-controls { opacity: 1; }
+  #invoiceTable .computed { color:#475569; font-style: italic; background:#F8FAFC; }
+  #invoiceTable .void { text-decoration: line-through; color: #C0392B; opacity: 0.6; }
+
+  /* Print stylesheet — 印發票時隱藏不必要元素 */
+  @media print {
+    body { background: white; }
+    .demo-banner, header, aside, .nav-item, footer, .print\:hidden { display: none !important; }
+    main { overflow: visible !important; }
+    section { display: block !important; }
+    section:not(#view-invoice) { display: none !important; }
+    #invoice-printable { padding: 0 !important; }
+    #invoiceTable { font-size: 10pt; }
+    #invoiceTable thead { background: #0F3057 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .bg-cream { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    @page { size: A4 landscape; margin: 1cm; }
+  }
+
+  /* Demo banner */
+  .demo-banner {
+    position:fixed; top:0; left:0; right:0; z-index:100;
+    background: repeating-linear-gradient(45deg, #FDF4E3, #FDF4E3 10px, #FFE9C0 10px, #FFE9C0 20px);
+    color:#C5832B; text-align:center; font-size:11px; padding:4px 0; font-weight:600;
+  }
+</style>
+</head>
+<body class="bg-slate-50 text-ink">
+
+<!-- DEMO BANNER -->
+<div class="demo-banner">
+  ⚠ UI/UX PROTOTYPE — 不是真實系統。所有資料皆為示意。對應 ADR-002 / SYSTEM-DESIGN.md
+</div>
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen" class="fixed inset-0 z-40 flex items-center justify-center bg-gradient-to-br from-navy to-teal" style="top:24px;">
+  <div class="bg-white rounded-2xl shadow-2xl p-10 w-[420px]">
+    <div class="text-center mb-8">
+      <div class="text-2xl font-bold text-navy">TMCA</div>
+      <div class="text-sm text-soft mt-1">音樂著作公開演出授權系統</div>
+      <div class="text-xs text-slate-400 mt-2">社團法人台灣音樂著作權協會</div>
+    </div>
+
+    <div class="space-y-3">
+      <label class="block text-xs text-slate-500">使用者帳號</label>
+      <input type="text" value="officer_b" class="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+      <label class="block text-xs text-slate-500 mt-3">密碼</label>
+      <input type="password" value="********" class="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+    </div>
+
+    <button onclick="login()" class="btn btn-primary w-full justify-center mt-6">登入</button>
+
+    <div class="mt-6 pt-6 border-t border-slate-200">
+      <div class="text-xs text-slate-400 mb-2">🎭 Demo 快速切換角色：</div>
+      <div class="grid grid-cols-2 gap-2">
+        <button onclick="loginAs('officer_a')" class="btn btn-ghost text-xs justify-center">承辦 A (男)<br>單場次</button>
+        <button onclick="loginAs('officer_b')" class="btn btn-ghost text-xs justify-center">承辦 B (女)<br>其他</button>
+        <button onclick="loginAs('accountant')" class="btn btn-ghost text-xs justify-center">會計</button>
+        <button onclick="loginAs('issuer')" class="btn btn-ghost text-xs justify-center">核發</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app" class="hidden" style="margin-top:24px;">
+
+  <!-- HEADER -->
+  <header class="bg-navy text-white px-6 py-3 flex items-center justify-between shadow-md">
+    <div class="flex items-center gap-3">
+      <div class="text-xl font-bold">TMCA</div>
+      <div class="text-sm text-cyan opacity-80">音樂著作公開演出授權系統</div>
+    </div>
+    <div class="flex items-center gap-4">
+      <button class="text-sm opacity-80 hover:opacity-100">📥 匯出</button>
+      <button class="text-sm opacity-80 hover:opacity-100">⚙️ 設定</button>
+      <div id="user-badge" class="flex items-center gap-2 bg-teal/20 px-3 py-1.5 rounded-full">
+        <div id="user-avatar" class="w-7 h-7 rounded-full bg-teal text-white flex items-center justify-center text-xs font-bold">B</div>
+        <div class="text-sm">
+          <div id="user-name" class="font-medium">王小美</div>
+        </div>
+        <span id="role-badge" class="pill pill-gold text-xs">承辦 B (女)</span>
+      </div>
+      <button onclick="logout()" class="text-xs opacity-60 hover:opacity-100">登出</button>
+    </div>
+  </header>
+
+  <!-- LAYOUT -->
+  <div class="flex" style="height:calc(100vh - 24px - 60px);">
+
+    <!-- SIDEBAR -->
+    <aside class="w-60 bg-white border-r border-slate-200 p-3 overflow-y-auto">
+      <div class="nav-section">主要</div>
+      <div class="nav-item active" id="nav-workspace" data-roles="all" onclick="switchView('workspace')">
+        <span>🏠</span><span>我的工作區</span>
+        <span class="ml-auto pill pill-red text-[10px]" style="padding:1px 6px;" id="nav-workspace-badge">3</span>
+      </div>
+      <div class="nav-item" data-roles="all" onclick="switchView('records')">
+        <span>📋</span><span>總表（全部）</span>
+        <span class="ml-auto text-[10px] text-slate-400" id="nav-records-perm">編輯</span>
+      </div>
+      <div class="nav-item" data-roles="officer_a,officer_b" onclick="switchView('renewals')">
+        <span>🔁</span><span>續約資料</span>
+        <span class="ml-auto pill pill-red text-[10px]" style="padding:1px 6px;">17</span>
+      </div>
+      <div class="nav-item" id="nav-invoice" data-roles="accountant" onclick="switchView('invoice')">
+        <span>🧾</span><span>印發票</span>
+        <span class="ml-auto text-[10px] text-slate-400">會計</span>
+      </div>
+      <div class="nav-item" data-roles="issuer" onclick="switchView('workspace')">
+        <span>📜</span><span>證書 Word 套印</span>
+        <span class="ml-auto text-[10px] text-slate-400">核發</span>
+      </div>
+      <div class="nav-item" data-roles="officer_a,officer_b" onclick="switchView('mailing')">
+        <span>✉️</span><span>寄信檔</span>
+      </div>
+      <div class="nav-item" data-roles="all" onclick="switchView('search')">
+        <span>🔍</span><span>搜尋</span>
+      </div>
+
+      <div class="nav-section">分析</div>
+      <div class="nav-item" data-roles="all" onclick="switchView('reports')">
+        <span>📊</span><span>報表</span>
+      </div>
+      <div class="nav-item" data-roles="all" onclick="switchView('audit')">
+        <span>📜</span><span>稽核軌跡</span>
+      </div>
+
+      <div class="nav-section">管理</div>
+      <div class="nav-item" data-roles="all" onclick="switchView('templates')">
+        <span>📄</span><span>Word 模板</span>
+      </div>
+      <div class="nav-item opacity-50" data-roles="all">
+        <span>👥</span><span>使用者</span>
+        <span class="ml-auto text-[10px] text-slate-400">admin</span>
+      </div>
+
+      <!-- bottom info -->
+      <div class="mt-8 p-3 bg-cyan/40 rounded-lg text-xs text-soft">
+        <div class="font-medium text-navy mb-1">💡 今日提醒</div>
+        <div>• 4 筆續約 ≤ 7 天到期</div>
+        <div>• 12 張證書待產生</div>
+        <div>• 上次備份：今晨 02:30</div>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="flex-1 overflow-auto">
+
+      <!-- VIEW: WORKSPACE (我的工作區，依角色顯示不同內容) -->
+      <section id="view-workspace" class="hidden">
+
+        <!-- ============ 承辦 A 工作區 (單場次) ============ -->
+        <div id="ws-officer_a" class="hidden">
+          <div class="bg-gradient-to-r from-navy to-teal text-white px-6 py-5">
+            <div class="text-xs opacity-80">我的工作區</div>
+            <h1 class="text-xl font-bold mt-1">承辦 A · 單場次表演專區</h1>
+            <p class="text-sm opacity-90 mt-1">依「承辦-單場次.xls」格式，10 欄精簡介面</p>
+          </div>
+
+          <div class="p-6 space-y-6">
+            <!-- 待認領 -->
+            <div class="bg-white rounded-lg shadow-sm border border-slate-200">
+              <div class="px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+                <h2 class="font-bold text-navy">📥 待認領案件（從 LINE 收到的申請書）</h2>
+                <span class="pill pill-red">3 筆</span>
+              </div>
+              <div class="divide-y divide-slate-100">
+                <div class="px-5 py-3 flex items-center justify-between hover:bg-slate-50">
+                  <div>
+                    <div class="font-medium">國際青年商會新北市汐止青年商<span class="pill pill-gold ml-2 text-xs">單場次公演</span></div>
+                    <div class="text-xs text-soft mt-0.5">LINE 收到 2026-05-15 11:23 ｜ 申辦日 115.04.25 ｜ 合約金額 NT$ 1,350</div>
+                  </div>
+                  <button class="btn btn-primary text-xs">認領 / 填寫</button>
+                </div>
+                <div class="px-5 py-3 flex items-center justify-between hover:bg-slate-50">
+                  <div>
+                    <div class="font-medium">正聲廣播股份有限公司<span class="pill pill-gold ml-2 text-xs">單場次公演</span></div>
+                    <div class="text-xs text-soft mt-0.5">LINE 收到 2026-05-14 16:08 ｜ 申辦日 115.04.21 ｜ 合約金額 NT$ 1,350</div>
+                  </div>
+                  <button class="btn btn-primary text-xs">認領 / 填寫</button>
+                </div>
+                <div class="px-5 py-3 flex items-center justify-between hover:bg-slate-50">
+                  <div>
+                    <div class="font-medium">2026 台北電影節閉幕酒會<span class="pill pill-gold ml-2 text-xs">公開傳輸</span></div>
+                    <div class="text-xs text-soft mt-0.5">LINE 收到 2026-05-13 09:42 ｜ 申辦日 115.05.10 ｜ 合約金額 NT$ 8,000</div>
+                  </div>
+                  <button class="btn btn-primary text-xs">認領 / 填寫</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 快速填寫表單 (10 欄) -->
+            <div class="bg-white rounded-lg shadow-sm border border-slate-200">
+              <div class="px-5 py-3 border-b border-slate-200">
+                <h2 class="font-bold text-navy">⚡ 快速填寫 — 單場次申請表</h2>
+                <p class="text-xs text-soft mt-0.5">沿用 承辦-單場次.xls 的 10 欄</p>
+              </div>
+              <div class="p-5 grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <label class="block text-xs text-soft mb-1">類別 <span class="text-warn">*</span></label>
+                  <select class="w-full border border-slate-300 rounded px-3 py-2">
+                    <option>單場次公演</option>
+                    <option>公開傳輸</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs text-soft mb-1">主辦單位 <span class="text-warn">*</span></label>
+                  <input type="text" placeholder="如：國際青年商會中華民國總會…" class="w-full border border-slate-300 rounded px-3 py-2" />
+                </div>
+                <div>
+                  <label class="block text-xs text-soft mb-1">申辦日期 <span class="text-warn">*</span></label>
+                  <input type="text" placeholder="115.05.16" class="w-full border border-slate-300 rounded px-3 py-2" />
+                </div>
+                <div>
+                  <label class="block text-xs text-soft mb-1">統一編號</label>
+                  <input type="text" placeholder="8 碼" class="w-full border border-slate-300 rounded px-3 py-2" />
+                </div>
+                <div>
+                  <label class="block text-xs text-soft mb-1">發票抬頭 <span class="text-warn">*</span></label>
+                  <input type="text" class="w-full border border-slate-300 rounded px-3 py-2" />
+                </div>
+                <div>
+                  <label class="block text-xs text-soft mb-1">承辦人</label>
+                  <input type="text" value="陳大華" class="w-full border border-slate-300 rounded px-3 py-2 bg-slate-50" readonly />
+                </div>
+                <div>
+                  <label class="block text-xs text-soft mb-1">合約金額（未稅）</label>
+                  <input type="number" placeholder="1350" class="w-full border border-slate-300 rounded px-3 py-2" />
+                </div>
+                <div>
+                  <label class="block text-xs text-soft mb-1">含稅總額（自動計算）</label>
+                  <input type="text" placeholder="自動 = 金額 × 1.05" class="w-full border border-slate-300 rounded px-3 py-2 bg-slate-50" readonly />
+                </div>
+                <div>
+                  <label class="block text-xs text-soft mb-1">授權期間 <span class="text-warn">*</span></label>
+                  <input type="text" placeholder="115.05.23（單場次=當日）" class="w-full border border-slate-300 rounded px-3 py-2" />
+                </div>
+                <div>
+                  <label class="block text-xs text-soft mb-1">送達地址 <span class="text-warn">*</span></label>
+                  <input type="text" placeholder="郵區 + 完整地址" class="w-full border border-slate-300 rounded px-3 py-2" />
+                </div>
+                <div class="col-span-2">
+                  <label class="block text-xs text-soft mb-1">紙本收件確認（不上傳雲端，實體手交）</label>
+                  <div class="flex gap-2 text-xs">
+                    <label class="flex-1 border border-slate-300 rounded p-3 flex items-center gap-2 cursor-pointer hover:bg-slate-50">
+                      <input type="checkbox" class="w-4 h-4"> 已收到申請書（紙本）
+                    </label>
+                    <label class="flex-1 border border-slate-300 rounded p-3 flex items-center gap-2 cursor-pointer hover:bg-slate-50">
+                      <input type="checkbox" class="w-4 h-4"> 已收到匯款單／發票
+                    </label>
+                    <label class="flex-1 border border-slate-300 rounded p-3 flex items-center gap-2 cursor-pointer hover:bg-slate-50">
+                      <input type="checkbox" class="w-4 h-4"> 已收到申請內容公文
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <div class="px-5 py-3 bg-slate-50 border-t border-slate-200 flex justify-end gap-2">
+                <button class="btn btn-ghost">儲存草稿</button>
+                <button class="btn btn-primary">送出 → 進入總表</button>
+              </div>
+            </div>
+
+            <!-- 已處理列表 -->
+            <div class="bg-white rounded-lg shadow-sm border border-slate-200">
+              <div class="px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+                <h2 class="font-bold text-navy">📋 我已處理的單場次案件（本月）</h2>
+                <span class="text-xs text-soft">17 筆</span>
+              </div>
+              <table class="w-full text-xs">
+                <thead class="bg-slate-50 text-left">
+                  <tr>
+                    <th class="px-3 py-2">類別</th>
+                    <th class="px-3 py-2">主辦單位</th>
+                    <th class="px-3 py-2">申辦日</th>
+                    <th class="px-3 py-2">統編</th>
+                    <th class="px-3 py-2 text-right">合約金額</th>
+                    <th class="px-3 py-2 text-right">含稅總額</th>
+                    <th class="px-3 py-2">授權期間</th>
+                    <th class="px-3 py-2">送達地址</th>
+                    <th class="px-3 py-2 text-center">會計</th>
+                    <th class="px-3 py-2 text-center">核發</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                  <tr><td class="px-3 py-2">單場次公演</td><td class="px-3 py-2">國際青年商會新北市汐止青年商</td><td class="px-3 py-2">115.04.25</td><td class="px-3 py-2">50699993</td><td class="px-3 py-2 text-right">1,350</td><td class="px-3 py-2 text-right">1,418</td><td class="px-3 py-2">115.05.23</td><td class="px-3 py-2">105 台北市松山區民生東路四段52號5樓</td><td class="px-3 py-2 text-center"><span class="pill pill-green text-[10px]">已開</span></td><td class="px-3 py-2 text-center"><span class="pill pill-red text-[10px]">待</span></td></tr>
+                  <tr><td class="px-3 py-2">公開傳輸</td><td class="px-3 py-2">國際青年商會新北市汐止青年商</td><td class="px-3 py-2">115.04.25</td><td class="px-3 py-2">50699993</td><td class="px-3 py-2 text-right">1,300</td><td class="px-3 py-2 text-right">1,365</td><td class="px-3 py-2">115.05.23</td><td class="px-3 py-2">105 台北市松山區民生東路四段52號5樓</td><td class="px-3 py-2 text-center"><span class="pill pill-green text-[10px]">已開</span></td><td class="px-3 py-2 text-center"><span class="pill pill-green text-[10px]">已核</span></td></tr>
+                  <tr><td class="px-3 py-2">單場次公演</td><td class="px-3 py-2">正聲廣播股份有限公司</td><td class="px-3 py-2">115.04.21</td><td class="px-3 py-2">O5077870</td><td class="px-3 py-2 text-right">1,350</td><td class="px-3 py-2 text-right">1,418</td><td class="px-3 py-2">115.04.23</td><td class="px-3 py-2">100 台北市中正區重慶南路一段66之1號</td><td class="px-3 py-2 text-center"><span class="pill pill-green text-[10px]">已開</span></td><td class="px-3 py-2 text-center"><span class="pill pill-green text-[10px]">已核</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ 承辦 B 工作區 (其他 11 類) ============ -->
+        <div id="ws-officer_b" class="hidden">
+          <div class="bg-gradient-to-r from-navy to-teal text-white px-6 py-5">
+            <div class="text-xs opacity-80">我的工作區</div>
+            <h1 class="text-xl font-bold mt-1">承辦 B · 其他類別專區</h1>
+            <p class="text-sm opacity-90 mt-1">依「承辦1.xlsx」格式，15 欄完整介面 — 電腦伴唱機 / 自助KTV / 街頭藝人 / 公開傳輸 / 大廳客房 等 11 類</p>
+          </div>
+
+          <div class="p-6 space-y-6">
+            <!-- 類別切換 -->
+            <div class="flex flex-wrap gap-2">
+              <span class="text-xs text-soft mr-2 self-center">我負責的 11 類：</span>
+              <button class="btn btn-teal text-xs">電腦伴唱機 <span class="ml-1 opacity-70">9629</span></button>
+              <button class="btn btn-ghost text-xs">社區管委會 <span class="ml-1 opacity-50">180</span></button>
+              <button class="btn btn-ghost text-xs">公益伴唱機 <span class="ml-1 opacity-50">2550</span></button>
+              <button class="btn btn-ghost text-xs">自助KTV <span class="ml-1 opacity-50">499</span></button>
+              <button class="btn btn-ghost text-xs">街頭藝人 <span class="ml-1 opacity-50">600</span></button>
+              <button class="btn btn-ghost text-xs">交通運輸 <span class="ml-1 opacity-50">85</span></button>
+              <button class="btn btn-ghost text-xs">公開傳輸 <span class="ml-1 opacity-50">240</span></button>
+              <button class="btn btn-ghost text-xs">告別式 <span class="ml-1 opacity-50">75</span></button>
+              <button class="btn btn-ghost text-xs">坪數-顯示器 <span class="ml-1 opacity-50">412</span></button>
+              <button class="btn btn-ghost text-xs">大廳-客房 <span class="ml-1 opacity-50">156</span></button>
+              <button class="btn btn-ghost text-xs">競選活動 <span class="ml-1 opacity-50">48</span></button>
+            </div>
+
+            <!-- 待認領 -->
+            <div class="bg-white rounded-lg shadow-sm border border-slate-200">
+              <div class="px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+                <h2 class="font-bold text-navy">📥 待認領案件</h2>
+                <span class="pill pill-red">5 筆</span>
+              </div>
+              <div class="divide-y divide-slate-100">
+                <div class="px-5 py-3 flex items-center justify-between hover:bg-slate-50">
+                  <div>
+                    <div class="font-medium">溱溱小吃部<span class="pill pill-gold ml-2 text-xs">電腦伴唱機 / 新件</span></div>
+                    <div class="text-xs text-soft mt-0.5">陳品鈴 ｜ 申辦 114.01.22 ｜ NT$ 3,675 ｜ 高雄市鳳山區新富路…</div>
+                  </div>
+                  <button class="btn btn-primary text-xs">認領 / 填寫</button>
+                </div>
+                <div class="px-5 py-3 flex items-center justify-between hover:bg-slate-50">
+                  <div>
+                    <div class="font-medium">良人小吃店（良人KTV）<span class="pill pill-gold ml-2 text-xs">電腦伴唱機 / 續約</span></div>
+                    <div class="text-xs text-soft mt-0.5">蔡雅菁 ｜ 申辦 115.01.06 ｜ NT$ 3,675 ｜ 彰化縣埔心鄉…</div>
+                  </div>
+                  <button class="btn btn-primary text-xs">認領 / 填寫</button>
+                </div>
+                <div class="px-5 py-3 flex items-center justify-between hover:bg-slate-50">
+                  <div>
+                    <div class="font-medium">金曲獎音樂股份有限公司（西門好聲音）<span class="pill pill-gold ml-2 text-xs">自助式KTV / 續約</span></div>
+                    <div class="text-xs text-soft mt-0.5">蔡憲輝 ｜ 申辦 115.01.06 ｜ NT$ 88,200 ｜ 24 申報數 ｜ 萬華區中華路一段…</div>
+                  </div>
+                  <button class="btn btn-primary text-xs">認領 / 填寫</button>
+                </div>
+                <div class="px-5 py-3 text-center text-xs text-slate-400">…還有 2 筆</div>
+              </div>
+            </div>
+
+            <!-- 快速填寫表單 (15 欄) -->
+            <div class="bg-white rounded-lg shadow-sm border border-slate-200">
+              <div class="px-5 py-3 border-b border-slate-200">
+                <h2 class="font-bold text-navy">⚡ 快速填寫 — 申請表</h2>
+                <p class="text-xs text-soft mt-0.5">沿用 承辦1.xlsx 的 15 欄</p>
+              </div>
+              <div class="p-5 grid grid-cols-3 gap-4 text-sm">
+                <div>
+                  <label class="block text-xs text-soft mb-1">類別 <span class="text-warn">*</span></label>
+                  <select class="w-full border border-slate-300 rounded px-3 py-2">
+                    <option>電腦伴唱機</option><option>社區管委會</option><option>公益伴唱機</option>
+                    <option>自助KTV</option><option>街頭藝人</option><option>交通運輸</option>
+                    <option>公開傳輸</option><option>告別式</option><option>坪數-顯示器</option>
+                    <option>大廳-客房</option><option>競選活動</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs text-soft mb-1">新件/續約 <span class="text-warn">*</span></label>
+                  <select class="w-full border border-slate-300 rounded px-3 py-2">
+                    <option>新件</option><option>續約</option><option>授權延長</option><option>補發</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs text-soft mb-1">負責人 <span class="text-warn">*</span></label>
+                  <input type="text" placeholder="如：陳品鈴" class="w-full border border-slate-300 rounded px-3 py-2" />
+                </div>
+                <div class="col-span-2">
+                  <label class="block text-xs text-soft mb-1">營業場所 <span class="text-warn">*</span></label>
+                  <input type="text" placeholder="如：溱溱小吃部" class="w-full border border-slate-300 rounded px-3 py-2" />
+                </div>
+                <div>
+                  <label class="block text-xs text-soft mb-1">申辦日期 <span class="text-warn">*</span></label>
+                  <input type="text" placeholder="115.05.16" class="w-full border border-slate-300 rounded px-3 py-2" />
+                </div>
+                <div>
+                  <label class="block text-xs text-soft mb-1">統一編號（發票）</label>
+                  <input type="text" placeholder="二聯/三聯 8 碼" class="w-full border border-slate-300 rounded px-3 py-2" />
+                </div>
+                <div class="col-span-2">
+                  <label class="block text-xs text-soft mb-1">發票抬頭 <span class="text-warn">*</span></label>
+                  <input type="text" class="w-full border border-slate-300 rounded px-3 py-2" />
+                </div>
+                <div>
+                  <label class="block text-xs text-soft mb-1">合約金額（未稅）</label>
+                  <input type="number" placeholder="3500" class="w-full border border-slate-300 rounded px-3 py-2" />
+                </div>
+                <div>
+                  <label class="block text-xs text-soft mb-1">申報數</label>
+                  <input type="number" placeholder="1" class="w-full border border-slate-300 rounded px-3 py-2" />
+                </div>
+                <div>
+                  <label class="block text-xs text-soft mb-1">含稅總額（自動）</label>
+                  <input type="text" placeholder="自動計算" class="w-full border border-slate-300 rounded px-3 py-2 bg-slate-50" readonly />
+                </div>
+                <div class="col-span-2">
+                  <label class="block text-xs text-soft mb-1">合約期間 <span class="text-warn">*</span></label>
+                  <input type="text" placeholder="115.01.01/115.12.31" class="w-full border border-slate-300 rounded px-3 py-2" />
+                </div>
+                <div>
+                  <label class="block text-xs text-soft mb-1">承辦人</label>
+                  <input type="text" value="王小美" class="w-full border border-slate-300 rounded px-3 py-2 bg-slate-50" readonly />
+                </div>
+                <div class="col-span-2">
+                  <label class="block text-xs text-soft mb-1">營業地址 <span class="text-warn">*</span></label>
+                  <input type="text" placeholder="完整地址" class="w-full border border-slate-300 rounded px-3 py-2" />
+                </div>
+                <div>
+                  <label class="block text-xs text-soft mb-1">營業統編（如不同於發票）</label>
+                  <input type="text" class="w-full border border-slate-300 rounded px-3 py-2" />
+                </div>
+                <div class="col-span-3">
+                  <label class="block text-xs text-soft mb-1">備註</label>
+                  <input type="text" placeholder="如：改寄地址、特殊註記…" class="w-full border border-slate-300 rounded px-3 py-2" />
+                </div>
+                <div class="col-span-3">
+                  <label class="block text-xs text-soft mb-1">紙本收件確認（不上傳雲端，實體手交）</label>
+                  <div class="flex gap-2 text-xs">
+                    <label class="flex-1 border border-slate-300 rounded p-3 flex items-center gap-2 cursor-pointer hover:bg-slate-50">
+                      <input type="checkbox" class="w-4 h-4"> 已收到申請書（紙本）
+                    </label>
+                    <label class="flex-1 border border-slate-300 rounded p-3 flex items-center gap-2 cursor-pointer hover:bg-slate-50">
+                      <input type="checkbox" class="w-4 h-4"> 已收到匯款單／發票
+                    </label>
+                    <label class="flex-1 border border-slate-300 rounded p-3 flex items-center gap-2 cursor-pointer hover:bg-slate-50">
+                      <input type="checkbox" class="w-4 h-4"> 已收到申請內容公文
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <div class="px-5 py-3 bg-slate-50 border-t border-slate-200 flex justify-end gap-2">
+                <button class="btn btn-ghost">儲存草稿</button>
+                <button class="btn btn-primary">送出 → 進入總表</button>
+              </div>
+            </div>
+
+            <!-- 統計 -->
+            <div class="grid grid-cols-4 gap-3">
+              <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><div class="text-xs text-soft">本月新增</div><div class="text-2xl font-bold text-navy mt-1">43</div></div>
+              <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><div class="text-xs text-soft">續約待辦</div><div class="text-2xl font-bold text-warn mt-1">12</div></div>
+              <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><div class="text-xs text-soft">已續約</div><div class="text-2xl font-bold text-ok mt-1">5</div></div>
+              <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><div class="text-xs text-soft">待寄信</div><div class="text-2xl font-bold text-gold mt-1">17</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ 會計 工作區 - 跳轉到印發票 ============ -->
+        <div id="ws-accountant" class="hidden p-6">
+          <div class="text-center py-12">
+            <div class="text-6xl mb-4">🧾</div>
+            <p class="text-soft">會計的主要工作在「印發票」頁，自動帶你過去…</p>
+          </div>
+        </div>
+
+        <!-- ============ 核發 工作區 ============ -->
+        <div id="ws-issuer" class="hidden">
+          <div class="bg-gradient-to-r from-navy to-teal text-white px-6 py-5">
+            <div class="text-xs opacity-80">我的工作區</div>
+            <h1 class="text-xl font-bold mt-1">核發人員專區</h1>
+            <p class="text-sm opacity-90 mt-1">輸入發票號碼進總資料庫 → 自動產出證書 Word + 大信封套印</p>
+          </div>
+
+          <div class="p-6 space-y-6">
+            <!-- Step 3: 待輸入發票號碼 -->
+            <div class="bg-white rounded-lg shadow-sm border border-slate-200">
+              <div class="px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+                <div>
+                  <h2 class="font-bold text-navy">① 待輸入發票號碼進總資料庫</h2>
+                  <p class="text-xs text-soft mt-0.5">會計開好發票、承辦資料已備齊，等核發補登發票號碼即可亮綠</p>
+                </div>
+                <span class="pill pill-red">3 筆</span>
+              </div>
+              <table class="w-full text-xs">
+                <thead class="bg-slate-50 text-left">
+                  <tr>
+                    <th class="px-3 py-2">證書編號</th>
+                    <th class="px-3 py-2">類別</th>
+                    <th class="px-3 py-2">持證者</th>
+                    <th class="px-3 py-2">統編</th>
+                    <th class="px-3 py-2 text-right">含稅總額</th>
+                    <th class="px-3 py-2">發票號碼（待輸入）</th>
+                    <th class="px-3 py-2 text-center">狀態</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                  <tr><td class="px-3 py-2 font-mono">T1102200002</td><td class="px-3 py-2">電腦伴唱機</td><td class="px-3 py-2">蘇活餐酒館</td><td class="px-3 py-2">-</td><td class="px-3 py-2 text-right">3,675</td><td class="px-3 py-2"><input type="text" placeholder="輸入發票號碼…" class="border border-slate-300 rounded px-2 py-1 w-36 text-xs" /></td><td class="px-3 py-2 text-center"><span class="pill pill-red text-[10px]">紅</span></td></tr>
+                  <tr><td class="px-3 py-2 font-mono">T1102200007</td><td class="px-3 py-2">電腦伴唱機</td><td class="px-3 py-2">川香小館</td><td class="px-3 py-2">83451122</td><td class="px-3 py-2 text-right">3,675</td><td class="px-3 py-2"><input type="text" placeholder="輸入發票號碼…" class="border border-slate-300 rounded px-2 py-1 w-36 text-xs" /></td><td class="px-3 py-2 text-center"><span class="pill pill-red text-[10px]">紅</span></td></tr>
+                  <tr><td class="px-3 py-2 font-mono">D1102300004</td><td class="px-3 py-2">單場次表演</td><td class="px-3 py-2">許志成</td><td class="px-3 py-2">-</td><td class="px-3 py-2 text-right">7,000</td><td class="px-3 py-2"><input type="text" placeholder="輸入發票號碼…" class="border border-slate-300 rounded px-2 py-1 w-36 text-xs" /></td><td class="px-3 py-2 text-center"><span class="pill pill-red text-[10px]">紅</span></td></tr>
+                </tbody>
+              </table>
+              <div class="px-5 py-3 bg-slate-50 border-t border-slate-200 text-right">
+                <button class="btn btn-primary text-xs">批次儲存發票號碼 → 狀態轉綠</button>
+              </div>
+            </div>
+
+            <!-- Step 4a: 證書套印 -->
+            <div class="bg-white rounded-lg shadow-sm border border-slate-200">
+              <div class="px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+                <div>
+                  <h2 class="font-bold text-navy">② 證書套印 — 由總表抓欄位填 Word 模板</h2>
+                  <p class="text-xs text-soft mt-0.5">沿用既有 27 個 .docx 模板（在 證書/ 資料夾）</p>
+                </div>
+                <span class="pill pill-green">12 張可產生</span>
+              </div>
+              <div class="p-5 grid grid-cols-3 gap-3">
+                <div class="border border-slate-200 rounded p-4">
+                  <div class="text-xs text-soft">電腦伴唱機</div>
+                  <div class="text-lg font-bold text-navy mt-1">4 張</div>
+                  <div class="text-xs text-soft mt-1">模板：A2電腦伴唱機證書-正面/背面</div>
+                  <button class="btn btn-primary w-full justify-center text-xs mt-3" onclick="showGenerateModal('電腦伴唱機證書')">⚡ 產生 Word</button>
+                </div>
+                <div class="border border-slate-200 rounded p-4">
+                  <div class="text-xs text-soft">自助KTV</div>
+                  <div class="text-lg font-bold text-navy mt-1">2 張</div>
+                  <div class="text-xs text-soft mt-1">模板：B1自助式KTV證書-正面/背面</div>
+                  <button class="btn btn-primary w-full justify-center text-xs mt-3" onclick="showGenerateModal('自助KTV證書')">⚡ 產生 Word</button>
+                </div>
+                <div class="border border-slate-200 rounded p-4">
+                  <div class="text-xs text-soft">單場次表演</div>
+                  <div class="text-lg font-bold text-navy mt-1">3 張</div>
+                  <div class="text-xs text-soft mt-1">模板：D2單場次表演證書-正面/後面</div>
+                  <button class="btn btn-primary w-full justify-center text-xs mt-3" onclick="showGenerateModal('單場次證書')">⚡ 產生 Word</button>
+                </div>
+                <div class="border border-slate-200 rounded p-4">
+                  <div class="text-xs text-soft">街頭藝人</div>
+                  <div class="text-lg font-bold text-navy mt-1">1 張</div>
+                  <button class="btn btn-primary w-full justify-center text-xs mt-3" onclick="showGenerateModal('街頭藝人證書')">⚡ 產生 Word</button>
+                </div>
+                <div class="border border-slate-200 rounded p-4">
+                  <div class="text-xs text-soft">交通運輸</div>
+                  <div class="text-lg font-bold text-navy mt-1">1 張</div>
+                  <button class="btn btn-primary w-full justify-center text-xs mt-3" onclick="showGenerateModal('交通運輸證書')">⚡ 產生 Word</button>
+                </div>
+                <div class="border border-slate-200 rounded p-4">
+                  <div class="text-xs text-soft">公開傳輸</div>
+                  <div class="text-lg font-bold text-navy mt-1">1 張</div>
+                  <button class="btn btn-primary w-full justify-center text-xs mt-3" onclick="showGenerateModal('公開傳輸證書')">⚡ 產生 Word</button>
+                </div>
+              </div>
+              <div class="px-5 py-3 bg-slate-50 border-t border-slate-200 text-right">
+                <button class="btn btn-teal text-xs" onclick="showGenerateModal('全部 12 張證書')">⚡ 一鍵產生全部 12 張證書 Word</button>
+              </div>
+            </div>
+
+            <!-- Step 4b: 大信封套印（沿用 核發-證書套印大信封.xlsx 3 欄） -->
+            <div class="bg-white rounded-lg shadow-sm border border-slate-200">
+              <div class="px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+                <div>
+                  <h2 class="font-bold text-navy">③ 大信封套印 — 寄證書用</h2>
+                  <p class="text-xs text-soft mt-0.5">沿用 核發-證書套印大信封.xlsx 的 3 欄：郵遞區號 / 地址 / 收件人</p>
+                </div>
+                <button class="btn btn-primary text-xs" onclick="showGenerateModal('大信封批次')">🖨️ 套印全部 6 個大信封</button>
+              </div>
+              <table class="w-full text-xs">
+                <thead class="bg-slate-50 text-left">
+                  <tr>
+                    <th class="px-3 py-2">勾選</th>
+                    <th class="px-3 py-2">郵遞區號</th>
+                    <th class="px-3 py-2">地址</th>
+                    <th class="px-3 py-2">收件人</th>
+                    <th class="px-3 py-2">證書編號</th>
+                    <th class="px-3 py-2 text-center">確認(掛號/平信)</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                  <tr><td class="px-3 py-2 text-center"><input type="checkbox" checked></td><td class="px-3 py-2 font-mono">103</td><td class="px-3 py-2">台北市大同區延平北路二段210巷7號</td><td class="px-3 py-2">雅姿小吃店</td><td class="px-3 py-2 font-mono text-slate-500">T1102100001</td><td class="px-3 py-2 text-center"><span class="pill pill-gold">平信</span></td></tr>
+                  <tr><td class="px-3 py-2 text-center"><input type="checkbox" checked></td><td class="px-3 py-2 font-mono">412</td><td class="px-3 py-2">臺中市大里區勝利二路100號</td><td class="px-3 py-2">雲月汽車旅館有限公司</td><td class="px-3 py-2 font-mono text-slate-500">A1102200015</td><td class="px-3 py-2 text-center"><span class="pill pill-gold">掛號</span></td></tr>
+                  <tr><td class="px-3 py-2 text-center"><input type="checkbox" checked></td><td class="px-3 py-2 font-mono">104</td><td class="px-3 py-2">台北市中山區八德路二段174巷5號1樓</td><td class="px-3 py-2">田園海鮮餐廳（好吃小吃店有限公司）</td><td class="px-3 py-2 font-mono text-slate-500">T1102200020</td><td class="px-3 py-2 text-center"><span class="pill pill-gold">平信</span></td></tr>
+                  <tr><td class="px-3 py-2 text-center"><input type="checkbox" checked></td><td class="px-3 py-2 font-mono">401</td><td class="px-3 py-2">台中市東區旱溪東路一段439號</td><td class="px-3 py-2">米格林理容名店</td><td class="px-3 py-2 font-mono text-slate-500">T1102300008</td><td class="px-3 py-2 text-center"><span class="pill pill-gold">平信</span></td></tr>
+                  <tr><td class="px-3 py-2 text-center"><input type="checkbox" checked></td><td class="px-3 py-2 font-mono">241</td><td class="px-3 py-2">新北市三重區重新路四段236號1樓</td><td class="px-3 py-2">艾來飲食店</td><td class="px-3 py-2 font-mono text-slate-500">T1102300011</td><td class="px-3 py-2 text-center"><span class="pill pill-gold">掛號</span></td></tr>
+                  <tr><td class="px-3 py-2 text-center"><input type="checkbox" checked></td><td class="px-3 py-2 font-mono">407</td><td class="px-3 py-2">台中市西屯區安和路37-6號2樓</td><td class="px-3 py-2">群哥實業有限公司</td><td class="px-3 py-2 font-mono text-slate-500">A1102300018</td><td class="px-3 py-2 text-center"><span class="pill pill-gold">平信</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- 核發狀態燈總覽 -->
+            <div class="grid grid-cols-4 gap-3">
+              <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><div class="text-xs text-soft">本月待輸入發票號</div><div class="text-2xl font-bold text-warn mt-1">3</div></div>
+              <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><div class="text-xs text-soft">已輸入待產證書</div><div class="text-2xl font-bold text-gold mt-1">12</div></div>
+              <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><div class="text-xs text-soft">已產證書待寄信</div><div class="text-2xl font-bold text-ok mt-1">6</div></div>
+              <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200"><div class="text-xs text-soft">本月已寄出</div><div class="text-2xl font-bold text-navy mt-1">71</div></div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- VIEW: RECORDS (總表) -->
+      <section id="view-records" class="">
+        <!-- Read-only banner（會計才會出現） -->
+        <div id="records-readonly-banner" class="hidden bg-amber-50 border-b-2 border-amber-300 px-6 py-2 text-sm text-amber-800">
+          🔒 您目前是「會計」身分 — 總表為唯讀（依權限規則，會計不可動總表，請改用「印發票」頁更動發票欄位）
+        </div>
+        <div class="bg-white border-b border-slate-200">
+          <!-- Breadcrumb & actions -->
+          <div class="px-6 pt-4 pb-2 flex items-center justify-between">
+            <div>
+              <div class="text-xs text-slate-400">主要 / 總表</div>
+              <h1 class="text-lg font-bold text-navy mt-1">總表 — 41 欄資料 <span class="text-xs font-normal text-slate-400 ml-2">最後同步：剛剛</span></h1>
+            </div>
+            <div class="flex gap-2">
+              <button class="btn btn-ghost">＋ 新增一筆</button>
+              <button class="btn btn-teal">📥 從 LINE 匯入申請書</button>
+              <button class="btn btn-primary">⚡ 產生證書 + 信封</button>
+            </div>
+          </div>
+
+          <!-- Filters strip -->
+          <div class="px-6 py-2 flex items-center gap-3 border-t border-slate-100 bg-slate-50/50">
+            <input type="text" placeholder="🔍 在此分頁內搜尋（持證者、申請人、地址…）" class="flex-1 border border-slate-300 rounded px-3 py-1.5 text-sm" />
+            <select class="border border-slate-300 rounded px-3 py-1.5 text-sm">
+              <option>所有狀態</option>
+              <option>核發未完成（紅）</option>
+              <option>續約未完成（紅）</option>
+            </select>
+            <select class="border border-slate-300 rounded px-3 py-1.5 text-sm">
+              <option>所有辦理項目</option>
+              <option>新申辦</option>
+              <option>續約</option>
+              <option>授權延長</option>
+            </select>
+            <button class="btn btn-ghost text-xs">⚙️ 欄位</button>
+            <button class="btn btn-ghost text-xs">📊 切視圖</button>
+          </div>
+
+          <!-- Category tabs -->
+          <div class="px-6 flex items-center gap-1 overflow-x-auto border-t border-slate-100">
+            <span class="text-xs text-slate-400 mr-2">12 個申請類型 →</span>
+            <div class="cat-tab active" data-cat="COMPUTER_KARAOKE" onclick="switchCategory(this)">電腦伴唱機 <span class="text-[10px] text-slate-400 ml-1">9,627</span></div>
+            <div class="cat-tab" data-cat="COMMUNITY_BOARD" onclick="switchCategory(this)">社區管委會 <span class="text-[10px] text-slate-400 ml-1">178</span></div>
+            <div class="cat-tab" data-cat="PUBLIC_KARAOKE" onclick="switchCategory(this)">公益伴唱機 <span class="text-[10px] text-slate-400 ml-1">2,548</span></div>
+            <div class="cat-tab" data-cat="SELF_SERVICE_KTV" onclick="switchCategory(this)">自助KTV <span class="text-[10px] text-slate-400 ml-1">497</span></div>
+            <div class="cat-tab" data-cat="STREET_ARTIST" onclick="switchCategory(this)">街頭藝人 <span class="text-[10px] text-slate-400 ml-1">598</span></div>
+            <div class="cat-tab" data-cat="TRANSPORT" onclick="switchCategory(this)">交通運輸 <span class="text-[10px] text-slate-400 ml-1">78</span></div>
+            <div class="cat-tab" data-cat="SINGLE_EVENT" onclick="switchCategory(this)">🔒 單場次表演 <span class="text-[10px] text-slate-400 ml-1">1,301</span></div>
+            <div class="cat-tab" data-cat="PUBLIC_TRANSMIT" onclick="switchCategory(this)">公開傳輸 <span class="text-[10px] text-slate-400 ml-1">198</span></div>
+            <div class="cat-tab" data-cat="FUNERAL" onclick="switchCategory(this)">告別式 <span class="text-[10px] text-slate-400 ml-1">38</span></div>
+            <div class="cat-tab" data-cat="AREA_DISPLAY" onclick="switchCategory(this)">坪數-顯示器 <span class="text-[10px] text-slate-400 ml-1">88</span></div>
+            <div class="cat-tab" data-cat="HALL_ROOM" onclick="switchCategory(this)">大廳-客房 <span class="text-[10px] text-slate-400 ml-1">48</span></div>
+            <div class="cat-tab" data-cat="ELECTION" onclick="switchCategory(this)">競選活動 <span class="text-[10px] text-slate-400 ml-1">21</span></div>
+          </div>
+        </div>
+
+        <!-- The Excel-like sheet -->
+        <div class="p-4">
+          <div id="hot-container" style="height: calc(100vh - 24px - 60px - 220px); width:100%; border:1px solid #E2E8F0; border-radius:6px; overflow:hidden;"></div>
+        </div>
+
+        <!-- footer status bar -->
+        <div class="px-6 py-2 bg-white border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
+          <div>共 <span class="font-medium text-ink">9,629</span> 筆 ｜ 已選 <span class="font-medium text-ink">0</span> ｜ 角色 <span id="status-role" class="font-medium text-teal">officer_b</span></div>
+          <div class="flex gap-4">
+            <span>↩ 復原</span>
+            <span>↪ 重做</span>
+            <span>📋 複製</span>
+            <span class="text-ok font-medium">● 已自動儲存</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: RENEWALS -->
+      <section id="view-renewals" class="hidden">
+        <div class="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+          <div>
+            <div class="text-xs text-slate-400">主要 / 續約資料 <span class="text-warn ml-1">(僅承辦可見)</span></div>
+            <h1 class="text-lg font-bold text-navy mt-1">續約資料管理</h1>
+            <p class="text-sm text-soft mt-1">系統依「持證者 / 統一編號 + 授權期間-迄日」自動分流，每天 06:00 更新一次。</p>
+          </div>
+          <div class="flex gap-2">
+            <button id="btn-renewal-mode-card" class="btn btn-primary text-xs" onclick="setRenewalMode('card')">📇 卡片視圖</button>
+            <button id="btn-renewal-mode-excel" class="btn btn-ghost text-xs" onclick="setRenewalMode('excel')">📊 Excel 編輯模式</button>
+          </div>
+        </div>
+
+        <!-- month tabs -->
+        <div class="px-6 py-3 bg-white border-b border-slate-100 flex items-center gap-1 overflow-x-auto">
+          <span class="text-xs text-slate-400 mr-2">115 年（西元 2026）→</span>
+          <div class="cat-tab">1月 <span class="text-[10px] text-slate-400 ml-1">23</span></div>
+          <div class="cat-tab">2月 <span class="text-[10px] text-slate-400 ml-1">18</span></div>
+          <div class="cat-tab">3月 <span class="text-[10px] text-slate-400 ml-1">21</span></div>
+          <div class="cat-tab">4月 <span class="text-[10px] text-slate-400 ml-1">15</span></div>
+          <div class="cat-tab active">5月 <span class="text-[10px] text-warn ml-1 font-bold">17</span></div>
+          <div class="cat-tab">6月 <span class="text-[10px] text-slate-400 ml-1">19</span></div>
+          <div class="cat-tab">7月 <span class="text-[10px] text-slate-400 ml-1">14</span></div>
+          <div class="cat-tab">8月 <span class="text-[10px] text-slate-400 ml-1">22</span></div>
+          <div class="cat-tab">9月 <span class="text-[10px] text-slate-400 ml-1">16</span></div>
+          <div class="cat-tab">10月 <span class="text-[10px] text-slate-400 ml-1">20</span></div>
+          <div class="cat-tab">11月 <span class="text-[10px] text-slate-400 ml-1">25</span></div>
+          <div class="cat-tab">12月 <span class="text-[10px] text-slate-400 ml-1">28</span></div>
+        </div>
+
+        <!-- ===== CARD MODE ===== -->
+        <div id="renewal-card-mode">
+        <!-- split panes -->
+        <div class="grid grid-cols-2 gap-4 p-6">
+          <!-- 未續約 -->
+          <div class="bg-white rounded-lg border-l-4 border-warn shadow-sm">
+            <div class="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+              <div>
+                <h2 class="font-bold text-navy">① 未續約名單</h2>
+                <p class="text-xs text-soft mt-0.5">本月到期、同單位「無」新申請書到期日 > 目前迄日</p>
+              </div>
+              <span class="pill pill-red">12 筆</span>
+            </div>
+            <div class="divide-y divide-slate-100 max-h-[500px] overflow-y-auto">
+              <div class="px-4 py-3 hover:bg-slate-50 cursor-pointer">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <div class="font-medium text-ink">玉亭餐廳</div>
+                    <div class="text-xs text-soft mt-0.5">統編 79841273 ｜ 電腦伴唱機 ｜ 迄日 115/5/14（已逾 2 天）</div>
+                  </div>
+                  <span class="pill pill-red">紅</span>
+                </div>
+                <div class="text-xs text-slate-500 mt-2">
+                  寄信地址：104 台北市中山區中山北路一段135巷27號 ｜ 收件人：陳玉貞
+                  <span class="pill pill-gold ml-2">平信</span>
+                </div>
+              </div>
+
+              <div class="px-4 py-3 hover:bg-slate-50 cursor-pointer">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <div class="font-medium text-ink">尚海社區管理委員會</div>
+                    <div class="text-xs text-soft mt-0.5">統編 30139924 ｜ 社區管委會 ｜ 迄日 115/5/9（已逾 7 天）</div>
+                  </div>
+                  <span class="pill pill-red">紅</span>
+                </div>
+                <div class="text-xs text-slate-500 mt-2">
+                  寄信地址：251 新北市淡水區淡金路2號 ｜ 收件人：駱杏娟
+                  <span class="pill pill-gold ml-2">掛號</span>
+                </div>
+              </div>
+
+              <div class="px-4 py-3 hover:bg-slate-50 cursor-pointer">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <div class="font-medium text-ink">高雄市三民區高泰社區發展協會</div>
+                    <div class="text-xs text-soft mt-0.5">統編 94990981 ｜ 公益伴唱機 ｜ 迄日 115/5/22（剩 6 天）</div>
+                  </div>
+                  <span class="pill pill-red">紅</span>
+                </div>
+                <div class="text-xs text-slate-500 mt-2">
+                  寄信地址：807 高雄市三民區同盟二路60號 ｜ 收件人：高雄市三民區高泰社區發展協會
+                  <span class="pill pill-gold ml-2">平信</span>
+                </div>
+              </div>
+
+              <div class="px-4 py-3 hover:bg-slate-50 cursor-pointer">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <div class="font-medium text-ink">小米花園 KTV</div>
+                    <div class="text-xs text-soft mt-0.5">統編 88812345 ｜ 自助KTV ｜ 迄日 115/5/28（剩 12 天）</div>
+                  </div>
+                  <span class="pill pill-red">紅</span>
+                </div>
+              </div>
+
+              <div class="px-4 py-3 hover:bg-slate-50 cursor-pointer">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <div class="font-medium text-ink">街頭好聲音工作室</div>
+                    <div class="text-xs text-soft mt-0.5">統編 12345678 ｜ 街頭藝人 ｜ 迄日 115/5/30（剩 14 天）</div>
+                  </div>
+                  <span class="pill pill-red">紅</span>
+                </div>
+              </div>
+
+              <div class="px-4 py-3 text-center text-xs text-slate-400">…還有 7 筆</div>
+            </div>
+            <div class="px-4 py-3 bg-slate-50 border-t border-slate-200 flex gap-2">
+              <button class="btn btn-primary text-xs flex-1 justify-center">✉️ 為這 12 筆產生通知函</button>
+              <button class="btn btn-ghost text-xs">📞 標記已聯繫</button>
+            </div>
+          </div>
+
+          <!-- 已續約 -->
+          <div class="bg-white rounded-lg border-l-4 border-ok shadow-sm">
+            <div class="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+              <div>
+                <h2 class="font-bold text-navy">② 續約名單</h2>
+                <p class="text-xs text-soft mt-0.5">同單位「已有」新申請書到期日 > 目前迄日 = 自動續約</p>
+              </div>
+              <span class="pill pill-green">5 筆</span>
+            </div>
+            <div class="divide-y divide-slate-100 max-h-[500px] overflow-y-auto">
+              <div class="px-4 py-3 hover:bg-slate-50 cursor-pointer">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <div class="font-medium text-ink">銀櫃視聽有限公司</div>
+                    <div class="text-xs text-soft mt-0.5">統編 27262717 ｜ 自助KTV ｜ 舊迄日 115/5/15</div>
+                  </div>
+                  <span class="pill pill-green">綠</span>
+                </div>
+                <div class="text-xs text-soft mt-2 bg-cyan/40 rounded px-2 py-1">
+                  ✓ 偵測到新申請書：迄日 116/5/14（剛建檔）
+                </div>
+              </div>
+
+              <div class="px-4 py-3 hover:bg-slate-50 cursor-pointer">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <div class="font-medium text-ink">康橋飯店宴會廳</div>
+                    <div class="text-xs text-soft mt-0.5">統編 55667788 ｜ 大廳-客房 ｜ 舊迄日 115/5/20</div>
+                  </div>
+                  <span class="pill pill-green">綠</span>
+                </div>
+                <div class="text-xs text-soft mt-2 bg-cyan/40 rounded px-2 py-1">
+                  ✓ 偵測到新申請書：迄日 116/5/19
+                </div>
+              </div>
+
+              <div class="px-4 py-3 hover:bg-slate-50 cursor-pointer">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <div class="font-medium text-ink">劉文權（街頭藝人）</div>
+                    <div class="text-xs text-soft mt-0.5">統編 - ｜ 街頭藝人 ｜ 舊迄日 115/5/11</div>
+                  </div>
+                  <span class="pill pill-green">綠</span>
+                </div>
+                <div class="text-xs text-soft mt-2 bg-cyan/40 rounded px-2 py-1">
+                  ✓ 偵測到新申請書：迄日 116/5/10
+                </div>
+              </div>
+
+              <div class="px-4 py-3 text-center text-xs text-slate-400">…還有 2 筆</div>
+            </div>
+            <div class="px-4 py-3 bg-slate-50 border-t border-slate-200 flex gap-2">
+              <button class="btn btn-teal text-xs flex-1 justify-center">✉️ 為這 5 筆產生「續約確認函」</button>
+            </div>
+          </div>
+        </div>
+        </div><!-- /renewal-card-mode -->
+
+        <!-- ===== EXCEL EDIT MODE ===== -->
+        <div id="renewal-excel-mode" class="hidden p-6">
+          <div class="bg-amber-50 border-l-4 border-amber-400 px-4 py-3 mb-3 rounded text-sm text-amber-800 flex items-center justify-between">
+            <div>
+              <strong>Excel 編輯模式</strong> — 直接點儲存格修改，自動儲存到總表。系統推算欄位（剩餘天數、續約狀態）為唯讀。
+            </div>
+            <span class="text-xs">編輯權限：✓ 承辦</span>
+          </div>
+          <div id="renewal-hot-container" style="height: calc(100vh - 24px - 60px - 280px); width:100%; border:1px solid #E2E8F0; border-radius:6px; overflow:hidden;"></div>
+          <div class="mt-3 flex justify-between text-xs text-soft">
+            <div>● 紅燈 = 未續約 / 到期 ≤ 30 天　│　● 綠燈 = 已續約完成</div>
+            <div>共 17 筆 ｜ 5月分頁 ｜ 已自動儲存</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: INVOICE PRINTING (會計) -->
+      <section id="view-invoice" class="hidden">
+        <div class="bg-white border-b border-slate-200 px-6 py-4 print:hidden">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-xs text-slate-400">主要 / 印發票</div>
+              <h1 class="text-lg font-bold text-navy mt-1">印發票 — 由總表抓資料、自動計算稅額</h1>
+              <p class="text-sm text-soft mt-1">沿用既有「會計-發票格式」邏輯：未稅小計 × 5% = 稅額；總金額 = 未稅小計 + 稅額</p>
+            </div>
+            <div class="flex gap-2">
+              <button class="btn btn-ghost" onclick="addInvoiceRow()">＋ 手動新增明細</button>
+              <button class="btn btn-teal" onclick="pullFromRecords()">📥 從總表撈本月待開立</button>
+              <button class="btn btn-primary" onclick="window.print()">🖨️ 列印明細表</button>
+              <button class="btn btn-ghost" onclick="exportInvoiceCSV()">📊 匯出 Excel/CSV</button>
+            </div>
+          </div>
+
+          <!-- Top control strip -->
+          <div class="mt-4 flex items-center gap-3 bg-cream/50 border border-gold/30 rounded p-3">
+            <div class="flex items-center gap-2">
+              <label class="text-sm text-soft">年月：</label>
+              <select id="invMonth" class="border border-slate-300 rounded px-2 py-1 text-sm">
+                <option>115 年 1 月</option>
+                <option>115 年 2 月</option>
+                <option>115 年 3 月</option>
+                <option>115 年 4 月</option>
+                <option selected>115 年 5 月</option>
+                <option>115 年 6 月</option>
+              </select>
+            </div>
+            <div class="text-xs text-soft">｜ 一月一張列印明細表，可直接交給會計師 / 國稅局</div>
+            <div class="ml-auto flex items-center gap-2 text-xs">
+              <span class="pill pill-green">已開立 5 筆</span>
+              <span class="pill pill-red">待開立 3 筆</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- PRINTABLE AREA -->
+        <div id="invoice-printable" class="p-6 print:p-0">
+
+          <!-- 列印標題（沿用 Excel 第 1 列） -->
+          <div class="text-center mb-3">
+            <div class="text-xl font-bold text-navy">社團法人台灣音樂著作權集體管理協會</div>
+            <div class="text-sm text-soft mt-1">發票列印明細表　│　<span id="invHeaderMonth">115 年 5 月</span></div>
+          </div>
+
+          <!-- 總計列（沿用 Excel 第 3 列） -->
+          <div class="bg-cream border-2 border-gold rounded p-3 mb-3 grid grid-cols-7 gap-2 text-sm">
+            <div class="font-bold text-navy text-center">總計</div>
+            <div></div>
+            <div class="text-right text-soft">數量總計：</div>
+            <div class="font-bold text-right text-navy" id="totQty">8</div>
+            <div class="text-right text-soft">未稅小計總計：</div>
+            <div class="font-bold text-right text-navy" id="totNet">28,000</div>
+            <div class="text-right">
+              <div class="text-soft">總金額：</div>
+              <div class="font-bold text-lg text-warn" id="totAmount">NT$ 29,400</div>
+            </div>
+          </div>
+
+          <!-- 列印明細表 -->
+          <div class="overflow-x-auto border border-slate-300 rounded">
+            <table id="invoiceTable" class="w-full text-xs">
+              <thead class="bg-navy text-white">
+                <tr>
+                  <th class="px-2 py-2 text-center">序號</th>
+                  <th class="px-2 py-2">發票型式</th>
+                  <th class="px-2 py-2">抬頭</th>
+                  <th class="px-2 py-2">統一編號</th>
+                  <th class="px-2 py-2">品名</th>
+                  <th class="px-2 py-2 text-right">未稅單價</th>
+                  <th class="px-2 py-2 text-center">數量</th>
+                  <th class="px-2 py-2 text-right">未稅小計</th>
+                  <th class="px-2 py-2 text-right">稅額(5%)</th>
+                  <th class="px-2 py-2 text-right">總金額</th>
+                  <th class="px-2 py-2">開立日期</th>
+                  <th class="px-2 py-2">發票號碼</th>
+                  <th class="px-2 py-2">客戶編號</th>
+                  <th class="px-2 py-2">備註</th>
+                </tr>
+              </thead>
+              <tbody id="invoiceTbody" class="divide-y divide-slate-200 bg-white">
+                <!-- rows injected by JS -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- footer note -->
+          <div class="mt-4 text-xs text-soft print:mt-8">
+            <div>● 三聯式 = 給有統編的買受人；二聯式 = 個人；作廢 = 發票機已作廢</div>
+            <div>● 品名選項：音樂公開演出授權費 / 公開播送 / 公開傳輸 / 權利金收入 / 權利金</div>
+            <div class="mt-2">列印時間：<span id="printTime"></span>　會計：<span id="printOperator">陳會計</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: MAILING -->
+      <section id="view-mailing" class="hidden">
+        <div class="bg-white border-b border-slate-200 px-6 py-4">
+          <div class="text-xs text-slate-400">主要 / 寄信檔</div>
+          <h1 class="text-lg font-bold text-navy mt-1">寄信檔 — Word + 信封 批次產生</h1>
+          <p class="text-sm text-soft mt-1">同名代辦人會自動合併批次（一封信列出他代辦的所有公司）</p>
+        </div>
+
+        <div class="p-6 grid grid-cols-3 gap-4">
+          <div class="bg-white p-5 rounded-lg shadow-sm border border-slate-200">
+            <div class="text-3xl mb-2">📄</div>
+            <h3 class="font-bold text-navy">未續約名單 通知函</h3>
+            <p class="text-xs text-soft mt-1 mb-4">12 筆 ｜ 合併後 10 封信</p>
+            <button class="btn btn-primary w-full justify-center text-sm" onclick="showGenerateModal('未續約通知函')">產生 Word + 信封</button>
+          </div>
+          <div class="bg-white p-5 rounded-lg shadow-sm border border-slate-200">
+            <div class="text-3xl mb-2">📨</div>
+            <h3 class="font-bold text-navy">續約確認函</h3>
+            <p class="text-xs text-soft mt-1 mb-4">5 筆 ｜ 合併後 5 封信</p>
+            <button class="btn btn-teal w-full justify-center text-sm" onclick="showGenerateModal('續約確認函')">產生 Word + 信封</button>
+          </div>
+          <div class="bg-white p-5 rounded-lg shadow-sm border border-slate-200">
+            <div class="text-3xl mb-2">📋</div>
+            <h3 class="font-bold text-navy">自訂批次</h3>
+            <p class="text-xs text-soft mt-1 mb-4">由「總表」勾選列後產生</p>
+            <button class="btn btn-ghost w-full justify-center text-sm">前往總表勾選</button>
+          </div>
+        </div>
+
+        <div class="px-6 pb-6">
+          <h3 class="font-medium text-navy text-sm mb-3">📚 同名代辦人預覽 — 系統自動合併</h3>
+          <div class="bg-white rounded-lg border border-slate-200">
+            <table class="w-full text-sm">
+              <thead class="bg-slate-50 text-left">
+                <tr>
+                  <th class="px-4 py-2 text-xs font-semibold text-soft">代辦人姓名</th>
+                  <th class="px-4 py-2 text-xs font-semibold text-soft">代辦公司</th>
+                  <th class="px-4 py-2 text-xs font-semibold text-soft">寄信類型</th>
+                  <th class="px-4 py-2 text-xs font-semibold text-soft">將寄至</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                <tr><td class="px-4 py-3">張美玲</td><td class="px-4 py-3">玉亭餐廳 / 川香小館 / 麗景咖啡</td><td class="px-4 py-3"><span class="pill pill-gold">平信</span></td><td class="px-4 py-3 text-xs text-soft">104 台北市中山區中山北路…</td></tr>
+                <tr><td class="px-4 py-3">林志強</td><td class="px-4 py-3">街頭好聲音工作室 / 文化大學音樂活動</td><td class="px-4 py-3"><span class="pill pill-gold">掛號</span></td><td class="px-4 py-3 text-xs text-soft">241 新北市三重區重新路…</td></tr>
+                <tr><td class="px-4 py-3">陳玉貞</td><td class="px-4 py-3">玉亭餐廳</td><td class="px-4 py-3"><span class="pill pill-gold">平信</span></td><td class="px-4 py-3 text-xs text-soft">104 台北市中山區中山北路一段135巷27號</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: SEARCH -->
+      <section id="view-search" class="hidden">
+        <div class="bg-white border-b border-slate-200 px-6 py-4">
+          <div class="text-xs text-slate-400">主要 / 搜尋</div>
+          <h1 class="text-lg font-bold text-navy mt-1">全欄位搜尋</h1>
+        </div>
+
+        <div class="p-6 max-w-4xl">
+          <input type="text" value="張美玲" placeholder="輸入持證者、申請人、地址、發票號碼…" class="w-full border-2 border-slate-300 rounded-lg px-4 py-3 text-lg" />
+
+          <div class="mt-3 flex gap-3 text-sm">
+            <label class="flex items-center gap-1"><input type="checkbox" checked> 持證者</label>
+            <label class="flex items-center gap-1"><input type="checkbox" checked> 申請人</label>
+            <label class="flex items-center gap-1"><input type="checkbox" checked> 統一編號</label>
+            <label class="flex items-center gap-1"><input type="checkbox"> 地址</label>
+            <label class="flex items-center gap-1"><input type="checkbox"> 發票號碼</label>
+            <span class="text-slate-400">·</span>
+            <label class="flex items-center gap-1"><input type="checkbox" checked> 跨 12 個申請類型搜尋</label>
+          </div>
+
+          <div class="mt-6 bg-cyan/40 rounded-lg p-4 text-sm">
+            <div class="font-medium text-navy">「張美玲」的代辦清單 — 共 <strong>3</strong> 家公司</div>
+          </div>
+
+          <div class="mt-4 bg-white rounded-lg border border-slate-200 divide-y divide-slate-100">
+            <div class="px-5 py-4 flex items-center justify-between hover:bg-slate-50 cursor-pointer">
+              <div>
+                <div class="font-medium text-ink">玉亭餐廳</div>
+                <div class="text-xs text-soft mt-0.5">電腦伴唱機 ｜ 統編 79841273 ｜ 證書 T1101100002 ｜ 期間 115/01-115/12</div>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="pill pill-green">續約：綠</span>
+                <span class="pill pill-green">核發：綠</span>
+              </div>
+            </div>
+            <div class="px-5 py-4 flex items-center justify-between hover:bg-slate-50 cursor-pointer">
+              <div>
+                <div class="font-medium text-ink">川香小館</div>
+                <div class="text-xs text-soft mt-0.5">電腦伴唱機 ｜ 統編 83451122 ｜ 證書 T1102200015 ｜ 期間 115/03-116/02</div>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="pill pill-gray">續約：—</span>
+                <span class="pill pill-green">核發：綠</span>
+              </div>
+            </div>
+            <div class="px-5 py-4 flex items-center justify-between hover:bg-slate-50 cursor-pointer">
+              <div>
+                <div class="font-medium text-ink">麗景咖啡</div>
+                <div class="text-xs text-soft mt-0.5">公開傳輸 ｜ 統編 27889911 ｜ 證書 PT1104400008 ｜ 期間 115/04-116/03</div>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="pill pill-red">續約：紅</span>
+                <span class="pill pill-red">核發：紅</span>
+              </div>
+            </div>
+          </div>
+
+          <button class="btn btn-primary mt-6">✉️ 為「張美玲」一次產生 3 公司的寄信檔</button>
+        </div>
+      </section>
+
+      <!-- VIEW: REPORTS -->
+      <section id="view-reports" class="hidden">
+        <div class="bg-white border-b border-slate-200 px-6 py-4">
+          <div class="text-xs text-slate-400">分析 / 報表</div>
+          <h1 class="text-lg font-bold text-navy mt-1">報表（示意）</h1>
+        </div>
+        <div class="p-6 grid grid-cols-4 gap-4">
+          <div class="bg-white p-5 rounded-lg shadow-sm border border-slate-200"><div class="text-xs text-soft">本月新申辦</div><div class="text-3xl font-bold text-navy mt-1">86</div><div class="text-xs text-ok mt-1">↑ +12% 較上月</div></div>
+          <div class="bg-white p-5 rounded-lg shadow-sm border border-slate-200"><div class="text-xs text-soft">本月續約完成率</div><div class="text-3xl font-bold text-teal mt-1">94%</div><div class="text-xs text-warn mt-1">5 筆未續約</div></div>
+          <div class="bg-white p-5 rounded-lg shadow-sm border border-slate-200"><div class="text-xs text-soft">本月已開立證書</div><div class="text-3xl font-bold text-ok mt-1">71</div><div class="text-xs text-slate-400 mt-1">12 張待產生</div></div>
+          <div class="bg-white p-5 rounded-lg shadow-sm border border-slate-200"><div class="text-xs text-soft">本月授權金額</div><div class="text-3xl font-bold text-gold mt-1">NT$ 287K</div><div class="text-xs text-ok mt-1">↑ +8%</div></div>
+        </div>
+        <div class="p-6">
+          <div class="bg-white rounded-lg border border-slate-200 p-5 text-center text-sm text-slate-400">📊 月趨勢圖（Phase 7 加入 Chart.js）</div>
+        </div>
+      </section>
+
+      <!-- VIEW: AUDIT -->
+      <section id="view-audit" class="hidden">
+        <div class="bg-white border-b border-slate-200 px-6 py-4">
+          <h1 class="text-lg font-bold text-navy">稽核軌跡（單筆查詢）</h1>
+        </div>
+        <div class="p-6">
+          <input type="text" placeholder="輸入證書編號（例：T1101100002）" class="w-96 border border-slate-300 rounded px-3 py-2 text-sm mb-4">
+          <div class="bg-white rounded-lg border border-slate-200 divide-y divide-slate-100">
+            <div class="px-5 py-3 flex items-center gap-4">
+              <span class="text-xs text-slate-400">2026-05-16 08:14</span>
+              <span class="pill pill-gold">王小美（officer_b）</span>
+              <span class="text-sm">改 <code>invoice_no</code></span>
+              <span class="text-xs text-soft">"" → "TC20290007"</span>
+            </div>
+            <div class="px-5 py-3 flex items-center gap-4">
+              <span class="text-xs text-slate-400">2026-05-16 08:13</span>
+              <span class="pill pill-gold">陳會計（accountant）</span>
+              <span class="text-sm">改 <code>amount</code></span>
+              <span class="text-xs text-soft">3,500 → 3,675</span>
+            </div>
+            <div class="px-5 py-3 flex items-center gap-4">
+              <span class="text-xs text-slate-400">2026-05-16 07:55</span>
+              <span class="pill pill-gold">王小美（officer_b）</span>
+              <span class="text-sm">建立新紀錄</span>
+              <span class="text-xs text-soft">cert_no T1101100002</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: TEMPLATES -->
+      <section id="view-templates" class="hidden">
+        <div class="bg-white border-b border-slate-200 px-6 py-4">
+          <h1 class="text-lg font-bold text-navy">Word 模板管理</h1>
+          <p class="text-sm text-soft mt-1">沿用既有 27 個 .docx 模板。Phase 5 啟動前要把每個模板對應到 category。</p>
+        </div>
+        <div class="p-6">
+          <table class="w-full bg-white rounded-lg border border-slate-200 text-sm">
+            <thead class="bg-slate-50 text-left text-xs">
+              <tr><th class="px-4 py-2">模板名稱</th><th class="px-4 py-2">類型</th><th class="px-4 py-2">適用分類</th><th class="px-4 py-2">狀態</th></tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr><td class="px-4 py-3">A2電腦伴唱機證書-正面.docx</td><td class="px-4 py-3">cert_front</td><td class="px-4 py-3">電腦伴唱機</td><td class="px-4 py-3"><span class="pill pill-green">啟用</span></td></tr>
+              <tr><td class="px-4 py-3">A2電腦伴唱機證書-背面.docx</td><td class="px-4 py-3">cert_back</td><td class="px-4 py-3">電腦伴唱機</td><td class="px-4 py-3"><span class="pill pill-green">啟用</span></td></tr>
+              <tr><td class="px-4 py-3">B1自助式KTV證書-正面.docx</td><td class="px-4 py-3">cert_front</td><td class="px-4 py-3">自助KTV</td><td class="px-4 py-3"><span class="pill pill-green">啟用</span></td></tr>
+              <tr><td class="px-4 py-3">D2單場次表演證書-正面.docx</td><td class="px-4 py-3">cert_front</td><td class="px-4 py-3">單場次表演</td><td class="px-4 py-3"><span class="pill pill-green">啟用</span></td></tr>
+              <tr><td class="px-4 py-3">承辦-續約函模板.docx</td><td class="px-4 py-3">notice</td><td class="px-4 py-3">（共用）</td><td class="px-4 py-3"><span class="pill pill-green">啟用</span></td></tr>
+              <tr class="bg-yellow-50"><td class="px-4 py-3 text-slate-500">告別式 — 待補</td><td class="px-4 py-3 text-slate-500">cert_front</td><td class="px-4 py-3 text-slate-500">告別式</td><td class="px-4 py-3"><span class="pill pill-red">缺檔案</span></td></tr>
+              <tr class="bg-yellow-50"><td class="px-4 py-3 text-slate-500">公益伴唱機 — 待補</td><td class="px-4 py-3 text-slate-500">cert_front</td><td class="px-4 py-3 text-slate-500">公益伴唱機</td><td class="px-4 py-3"><span class="pill pill-red">缺檔案</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<!-- Generate Modal -->
+<div id="gen-modal" class="hidden modal-backdrop" onclick="closeModal(event)">
+  <div class="bg-white rounded-xl shadow-2xl p-8 w-[560px]" onclick="event.stopPropagation()">
+    <div class="text-center mb-6">
+      <div class="text-5xl mb-3">⚡</div>
+      <h2 class="text-xl font-bold text-navy">產生中…</h2>
+      <p id="gen-modal-subtitle" class="text-sm text-soft mt-1">系統由總表抓欄位填模板</p>
+    </div>
+    <div id="gen-progress" class="space-y-2 text-sm">
+      <div class="flex items-center gap-3"><span class="text-ok">✓</span><span>讀取總表 12 筆資料</span></div>
+      <div class="flex items-center gap-3"><span class="text-ok">✓</span><span>對應 Word 模板（承辦-續約函模板.docx）</span></div>
+      <div class="flex items-center gap-3"><span class="text-ok">✓</span><span>同名代辦人合併 → 10 封信</span></div>
+      <div class="flex items-center gap-3"><span class="text-ok">✓</span><span>產生 Word 通知函</span></div>
+      <div class="flex items-center gap-3"><span class="text-ok">✓</span><span>產生 Word 信封</span></div>
+    </div>
+    <div class="mt-6 bg-cyan/40 rounded-lg p-4 space-y-2">
+      <a href="#" class="flex items-center gap-2 text-sm text-navy hover:underline">
+        <span>📄</span><span>115-05_未續約通知函_合併.docx</span><span class="text-xs text-slate-400">(28 KB)</span>
+      </a>
+      <a href="#" class="flex items-center gap-2 text-sm text-navy hover:underline">
+        <span>✉️</span><span>115-05_信封_合併.docx</span><span class="text-xs text-slate-400">(16 KB)</span>
+      </a>
+    </div>
+    <div class="flex gap-2 mt-6">
+      <button class="btn btn-primary flex-1 justify-center" onclick="closeModal()">下載並關閉</button>
+      <button class="btn btn-ghost" onclick="closeModal()">取消</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+// ===========================
+// 真實總表 12 個工作表結構（由 110-115年 總表.xlsx 直接擷取）
+// ===========================
+
+const CATEGORY_DEFS = {
+  COMPUTER_KARAOKE: {
+    name: "電腦伴唱機",
+    cols: ["NO.", "發證日", "註記", "證書編號", "發票日期", "發票形式", "發票抬頭", "統一編號", "發票號碼", "金額(含稅)", "提報", "承辦人", "辦理項目", "申請日期", "申請人", "身分證字號", "行動", "電話", "傳真", "持證者", "性質", "郵遞區號", "使用地址", "現場聯絡人", "手機", "電話", "分機", "傳真", "台數", "廠牌", "機號", "授權期間-起年", "起月", "起日", "迄年", "迄月", "迄日", "寄證地址-郵區", "寄證地址", "收件人", "收件人電話"],
+    rows: [[1, "", "", "T1101100002", "110.11.23", "三聯式", "玉亭餐廳", 79841273, "TC20290007", 3675, "承辦", "劉昭信", "新申辦", "110.11.01", "陳玉貞", "", "", "", "", "玉亭餐廳", "餐廳", 104, "台北市中山區中山北路一段135巷27號", "", "", "0923-387-392", "", "", 1, "弘音", "60313", 110, 11, "01", 111, 10, 31, 104, "台北市中山區中山北路一段135巷27號", "玉亭餐廳", ""], [2, "", "", "T1101100003", "110.11.30", "三聯式", "漢斯小吃店", 42340889, "TC20290010", 3675, "承辦", "劉昭信", "新申辦", "110.11.30", "孟慶華", "F220926576", "", "", "", "漢斯小吃店", "卡拉OK", 104, "台北市中山區林森北路138巷15號B1", "何睿(店長)", "", "(02)2567-6560", "", "", 1, "弘音", "D62269", 110, "08", "01", 112, "01", 31, 110, "台北市信義區松隆路102號15樓", "孟慶華", "0958-991955"], [3, "", "", "S2110040F", "111.01.13", "三聯式", "大板根育樂事業(股)公司", 97275715, "VL20289759", 12600, "承辦", "蔡敏媛", "續約", "111.01.12", "大板根育樂事業(股)公司", "", "", "", "", "大板根森林溫泉渡假村", "卡拉OK", 237, "新北市三峽區插角里80號", "莊益群", "", "(02)26749228", "3435", "", 4, "瑞影", "N61835、N61836、N61837、N61838", 111, "01", "01", 112, "05", 31, "自取", "", "", ""]]
+  },
+  COMMUNITY_BOARD: {
+    name: "社區管委會",
+    cols: ["NO.", "發證日", "註記", "證書編號", "發票日期", "發票形式", "發票抬頭", "統一編號", "發票號碼", "金額(含稅)", "提報", "承辦人", "辦理項目", "申請日期", "申請人", "身分證字號", "行動", "電話", "傳真", "持證者", "性質", "郵遞區號", "使用地址", "現場聯絡人", "手機", "電話", "分機", "傳真", "台數", "廠牌", "機號", "授權期間-起年", "起月", "起日", "迄年", "迄月", "迄日", "寄證地址-郵區", "收件地址", "收件人", "收件人電話"],
+    rows: [[1, "112.05.10", "", "CR2305001", "112.05.10", "三聯式", "尚海社區管理委員會", "30139924", "MZ19551033", 22680, "承辦", "廖文萍", "新申辦", "112.05.01", "駱杏娟", "A222571252", "", "02-8626-0778", "02-8626-3397", "尚海社區管理委員會", "", 251, "新北市淡水區淡金路2號", "蔡培宏", "", "02-8626-0778", "", "02-8626-3397", 3, "金嗓", "CPX-900m1+15702801", 110, "01", "01", 112, 12, 31, 251, "新北市淡水區淡金路2號", "尚海社區管理委員會", "02-8626-0778"], [2, "112.05.15", "", "CR2305002", "112.05.15", "三聯式", "NY璞緻社區管理委員會", "49795977", "MZ19551075", 5040, "承辦", "廖文萍", "新申辦", "112.05.03", "林昱名", "", 933912650, "02-8521-2648", "", "NY璞緻社區管理委員會", "", 242, "新北市新莊區榮華路二段75號", "楊尚強", "0987-320-877", "02-8521-2648", "", "", 2, "金嗓", "15201397、15201399", 112, "01", "01", 112, 12, 31, 242, "新北市新莊區榮華路二段75號", "NY璞緻社區管委會", "02-8521-2648"], [3, "112.05.15", "", "CR2305003", "112.05.15", "三聯式", "華固雙橡園公寓大廈管理委員會", "25682122", "MZ19551076", 5040, "承辦", "廖文萍", "新申辦", "112.05.03", "", "", "", "", "", "華固雙橡園公寓大廈管理委員會", "", 104, "台北市中山區南京東路三段27弄1號", "", "", "", "", "", 1, "金嗓", "CPX900M1", 112, "01", "01", 112, 12, 31, 104, "台北市中山區南京東路三段27弄1號", "華固雙橡園公寓大廈管理委員會", ""]]
+  },
+  PUBLIC_KARAOKE: {
+    name: "公益伴唱機",
+    cols: ["NO.", "發證日", "註記", "證書編號", "發票日期", "發票形式", "發票抬頭", "統一編號", "發票號碼", "金額(含稅)", "提報", "承辦人", "辦理項目", "申請日期", "申請人", "身分證號", "行動", "電話", "傳真", "持證者", "性質", "郵遞區號", "使用地址", "現場聯絡人", "手機", "電話", "分機", "傳真", "台數", "廠牌", "機號", "授權期間-起年", "起月", "起日", "迄年", "迄月", "迄日", "寄證地址-郵區", "收件地址", "收件人", "收件人電話"],
+    rows: [[1, "", "", "T1101100001", "111.01.03", "三聯式", "高雄市三民區高泰社區發展協會", 94990981, "VL20289751", 3675, "自辦", "公司", "新申辦", "110.11.05", "高雄市三民區高泰社區發展協會", "", "", "", "", "安泰里溫馨小屋", "社區", 807, "高雄市三民區同盟二路60號", "", "", "(07)3155859", "", "", 1, "唱立", "JL-528", 110, 11, "01", 111, 12, 31, 807, "高雄市三民區安泰里宣化街48號", "高雄市三民區高泰社區發展協會", ""], [2, "", "", "S2210002A", "111.01.06", "三聯式", "國立台灣大學", "03734301", "VL20289762", 3859, "自辦", "公司", "新申辦", "111.01.06", "吳財榮", "A120653286", "0927-225-635", "", "", "台大綜合體育館教職員工交誼廳", "社區", 106216, "台北市大安區羅斯福路四段1號", "", "", "(02)3366-5120", "", "(02)2363-9984", 1, "金嗓", "16401854", 110, "01", "01", 111, 12, 31, 106216, "台北市大安區羅斯福路四段一號", "台大物理系辦公室/陳雅薰小姐", "(02)3366-5122"], [3, "", "", "S2210002N", "111.01.18", "三聯式", "彰化縣埔心鄉仁里社區發展協會", 45378654, "VL20289772", 3859, "自辦", "公司", "新申辦", "111.01.13", "田玉份", "M220973374", "0919-714-345", "", "", "彰化縣埔心鄉仁里社區", "社區", 513, "彰化縣埔心鄉仁里村仁聖路171號", "", "", "(04)828-0817", "", "", 1, "音圓", "NS100", 110, "01", "01", 111, 12, 31, 513, "彰化縣埔心鄉永坡路一段261號", "田玉份小姐", ""]]
+  },
+  SELF_SERVICE_KTV: {
+    name: "自助KTV",
+    cols: ["NO.", "發證日", "註記", "證書編號", "發票日期", "發票形式", "發票抬頭", "統一編號", "發票號碼", "金額(含稅)", "提報", "承辦人", "辦理項目", "申請日期", "申請人", "身分證號", "手機", "電話", "傳真", "持證者", "聯絡人", "聯絡-手機", "聯絡-電話", "聯絡-分機", "聯絡-傳真", "郵遞區號", "使用地址", "包廂數", "授權期間-起年", "起月", "起日", "迄年", "迄月", "迄日", "寄證地址-郵區", "收件地址", "收件人", "收件人電話"],
+    rows: [[1, "", "", "S2110021B", "111.01.17", "三聯式", "銀櫃視聽有限公司", 27262717, "VL20289763", 63000, "自辦", "", "續約", "111.01.06", "柯明正", "B200039890", "0923-133-278", "04-27051400", "04-27029070", "銀櫃視聽有限公司", "巫文銓", "", "04-27051400", "", "04-27029070", 407, "台中市西屯區西屯路二段273-5號3樓", 20, 110, "08", "01", 111, 12, 31, "", "同營業地址", "", ""], [2, "", "", "S2110001K", "111.01.17", "三聯式", "歌神庭園視聽伴唱", 83340693, "VL20289764", 63000, "自辦", "", "續約", "111.01.11", "江忠原", "N120727308", "", "037-616000", "037-616965", "歌神庭園視聽伴唱", "洪若榛", "", "037-616000", "", "037-616965", 351, "苗栗縣頭份鎮公北三路62號", 20, 110, "08", "01", 111, 12, 31, "", "同營業地址", "", ""], [3, "", "", "S2110015B", "111.01.17", "三聯式", "賓仕視聽歌唱名店", "09297778", "VL20289765", 44100, "自辦", "", "續約", "111.01.11", "江再發", "N100957855", "", "04-22250917", "04-22250921", "賓仕視聽歌唱名店", "楊添成", "", "04-22250917", "", "04-22250921", 400, "台中市中區台灣大道一段100號11樓A棟", 14, 110, "08", "01", 111, 12, 31, "", "同營業地址", "", ""]]
+  },
+  STREET_ARTIST: {
+    name: "街頭藝人",
+    cols: ["NO.", "發證日", "註記", "證書編號", "發票日期", "發票形式", "發票抬頭", "統一編號", "發票號碼", "金額(含稅)", "提報", "承辦人", "辦理項目", "申請日期", "申請人", "手機", "電話", "傳真", "E-mail", "持證者", "發證單位", "街頭藝人證號", "證號到期日", "表演場地", "授權期間-起年", "起月", "起日", "迄年", "迄月", "迄日", "寄證地址-郵區", "收件地址", "收件人", "收件人電話"],
+    rows: [[1, "", "原110/1/1-110/12/31", "M1101100001", "110.11.18", "二聯式", "劉文權", "", "TC20290003", 525, "自辦", "", "授權延長", "110.11.17", "劉文權", "0933-252-550", "", "", "", "劉文權", "", "MT11001270", "", "淡水、八里、大溪老街", 110, "01", "01", 111, 12, 31, 334, "桃園市八德區富城街50號3樓", "劉文權", "0933-252-550"], [2, "", "", "M1101100002", "110.11.18", "二聯式", "鐘啟嘉", "", "TC20290004", 1575, "自辦", "", "新申辦", "110.11.18", "鐘啟嘉", "0932-632-228", "(04)2263-2228", "(04)2263-2229", "", "鐘啟嘉", "", "A108153", "", "台中市-豐樂雕塑公園", 110, "01", "01", 111, 12, 31, 40241, "台中市南區樹義里樹義一街30號", "鐘啟嘉", ""], [3, "", "原110/1/1-110/12/31", "M1101100003", "110.11.22", "二聯式", "鄭全成", "", "TC20290005", 525, "自辦", "", "授權延長", "110.11.19", "鄭全成", "0939-233-258", "", "", "", "鄭全成", "", "MT11001351", "", "政府所公布的場地", 110, "01", "01", 111, 12, 31, 333, "桃園市龜山區萬壽路一段頂好巷11號2樓", "鄭全成", ""]]
+  },
+  TRANSPORT: {
+    name: "交通運輸工具",
+    cols: ["NO.", "發證日", "註記", "證書編號", "發票日期", "發票形式", "發票抬頭", "統一編號", "發票號碼", "金額(含稅)", "提報", "承辦人", "辦理項目", "申請日期", "申請人", "手機", "電話", "傳真", "持證者", "郵區", "營業地址", "聯絡人", "聯絡-手機", "聯絡-電話", "聯絡-分機", "聯絡-傳真", "車輛數", "車輛號碼", "授權期間-起年", "起月", "起日", "迄年", "迄月", "迄日", "寄證地址-郵區", "收件地址", "收件人", "收件人電話"],
+    rows: [[1, "111.05.04", "", "R2200001E", "111.04.29", "三聯式", "花東之星通運有限公司", 75971604, "XN18813763", 2100, "自辦", "", "新申辦", "111.04.25", "林月英", "0910-494-893", "(03)8262-682", "(03)8261-915", "花東之星通運有限公司", 971, "花蓮縣新城鄉嘉里村嘉里路159之3號", "林月英", "0910-494-893", "(03)8262-682", "", "(03)8261-915", 1, "861-V8", 111, "01", "01", 111, 12, 31, 971, "花蓮縣新城鄉嘉里村嘉里四路16-11號", "林月英小姐", ""], [2, "111.05.04", "", "R2200002E", "111.05.04", "三聯式", "亙威電子工業有限公司", 80050446, "ZQ19695513", 8400, "自辦", "", "新申辦", "111.05.01", "馬金足", "", "(06)9213-822", "(06)9213-519", "澎湖縣政府公共車船管理處", 880, "澎湖縣馬公市光華里200號", "鄭啟聰", "", "(06)9213-822", "", "(06)9213-519", 1, "KAB-8902", 111, "05", "01", 113, "04", 30, 500, "彰化市彰水路194巷11號", "亙威電子工業有限公司-李玉美", "0958 853 349"], [3, "111.05.04", "", "R2200003E", "111.05.04", "三聯式", "亙威電子工業有限公司", 80050446, "ZQ19695513", 8400, "自辦", "", "新申辦", "111.05.01", "馬金足", "", "(06)9213-822", "(06)9213-519", "澎湖縣政府公共車船管理處", 880, "澎湖縣馬公市光華里200號", "鄭啟聰", "", "(06)9213-822", "", "(06)9213-519", 1, "KAB-8903", 111, "05", "01", 113, "04", 30, 500, "彰化市彰水路194巷11號", "亙威電子工業有限公司-李玉美", "0958 853 349"]]
+  },
+  SINGLE_EVENT: {
+    name: "單場次表演",
+    cols: ["NO.", "發證日", "註記", "證書編號", "發票日期", "發票形式", "發票抬頭", "統一編號", "發票號碼", "金額(含稅)", "申請日期", "主辦單位(持證人)", "持證人-統編", "持證人-電話", "持證人-傳真", "持證人-地址", "節目名稱", "演出曲目", "總曲數", "活動地點", "活動地址", "場次", "人數", "授權期間-起年", "起月", "起日", "迄年", "迄月", "迄日", "業務承辦-所屬單位", "業務-姓名", "業務-職稱", "業務-手機", "業務-電話", "業務-分機", "業務-傳真", "業務-信箱", "寄證地址-郵區", "收件地址", "收件人", "收件人電話"],
+    rows: [[1, "", "", "C1101100001", "110.11.30", "三聯式", "六覺創意行銷顧問有限公司", 53469762, "TC20290008", 1418, "110.11.26", "六覺創意行銷顧問有限公司", 53469762, "(03)531-9500", "(03)531-9500", "新竹市北區金竹路102巷32號4樓", "110年經典音樂饗宴", "棉照被", "壹", "蘆竹光明河濱公園", "蘆竹區錦興里光明路二段", 1, 500, 110, 11, 27, 110, 11, 27, "六覺創意行銷顧問有限公司", "曾佳雯小姐", "專案", "0931-139-699", "(03)531-9500", "", "(03)531-9500", "chiawen1106@gmail.com", 300, "新竹市北區金竹路102巷32號4樓", "六覺創意行銷顧問有限公司", ""], [2, "", "", "C1101100002", "110.12.02", "三聯式", "含光藝術工作室", 48929344, "TC20290011", 2100, "110.11.09", "含光藝術工作室", 48929344, "0987-132-026", "", "台北市中山區長安東路一段20號6樓之6", "9/25聽聽彈彈～廖皎含鋼琴獨奏會", "澎湃的迴響", "壹", "國家兩廳院演奏廳", "台北市中正區中山南路21-1號", 1, 153, 110, "09", 25, 110, "09", 25, "含光藝術工作室", "廖皎含小姐", "藝術總監", "0987-132-026", "", "", "", "hanart.taiwan@gmail.com", 104, "台北市中山區長安東路一段20號6樓之6", "含光藝術工作室/廖皎含", ""], [3, "", "", "C1101200001", "110.12.03", "三聯式", "京承創意行銷顧問有限公司", 59371745, "TC20290012", 2268, "110.12.02", "京承創意行銷顧問有限公司", 59371745, "(07)338-1796", "(07)338-1896", "高雄市苓雅區永樂街147號", "2021高樹鄉水資源宣導活動暨歲末感恩晚會", "紅豆、用心、出嫁、遇見、七天、純情花…", "拾陸", "屏東縣高樹國中", "屏東縣高樹鄉南興路4號", 1, 300, 110, 12, 11, 110, 12, 11, "京承創意行銷顧問有限公司", "蔡嘉心小姐", "專案", "0988-854-866", "(07)338-1796", "", "(07)338-1896", "kingdom.pj006@gmail.com", 802, "高雄市苓雅區永樂街147號", "京承創意行銷顧問有限公司", ""]]
+  },
+  PUBLIC_TRANSMIT: {
+    name: "公開傳輸",
+    cols: ["NO.", "發證日期", "備註", "證號", "發票日期", "發票形式", "發票抬頭", "統一編號", "發票號碼", "金額(含稅)", "申請日期", "持證人", "代表人", "聯絡人", "電話", "傳真", "E-mail", "郵區", "地址", "使用類型", "營收/來源", "平台名稱", "網址", "公開傳輸曲目", "授權期間-起年", "起月", "起日", "迄年", "迄月", "迄日", "寄證-郵區", "收件地址", "收件人"],
+    rows: [[1, "", "", "Net-22001F", "111.05.17", "三聯式", "好家庭藝術股份有限公司", 27450751, "ZQ19695600", 1155, "111.04.22", "好家庭藝術股份有限公司", "高鈺", "姚美綺秘書", "(04)2260-3977 分機 32", "(04)2263-6433", "meechii@family977.com.tw", 402, "台中市南區忠明南路789號37樓", "網路直播平台", "否", "裕元獎 FB 2022裕元獎全國兒童合唱表演賽", "https://www.facebook.com/YYAsince2006", "巴布巴布(台)、農村曲(台)、點子膠(台)", 111, "04", 24, 111, "04", 24, 402, "台中市南區忠明南路789號37樓", "好家庭藝術股份有限公司"], [2, "", "", "Net-22002F", "111.10.04", "三聯式", "和合佰納媒體事業股份有限公司", 54326588, "DV19614997", 13650, "111.09.20", "和合佰納媒體事業股份有限公司", "武曉蓉", "王昕穎", "02-2073-6777 分機36", "", "singing232323@gmail.com", 114, "台北市內湖區內湖路一段123號3樓", "網路直播平台", "否", "僑委會111年全球僑校學生暨僑生歌唱大賽", "https://youtu.be/NDylaK1TYvV8", "綿照被(台)", 111, "09", 17, 112, "09", 16, 114, "台北市內湖區內湖路一段123號3樓", "和合佰納媒體事業股份有限公司 王昕穎"], [3, "", "", "Net221201", "111.12.06", "三聯式", "木蘭文化事業有限公司", 13140530, "FX19603694", 1050, "111.12.02", "木蘭文化事業有限公司", "劉伯姬", "徐書燕", "0966709719", "", "sueyen0203@gmail.com", 702, "台南市南區夏林路222巷12號4樓", "網路直播平台", "否", "木蘭文化MULAN", "https://www.youtube.com/@mulan6923", "草仔枝", 111, 12, 17, 112, "01", 14, 407, "臺中市西屯區河南路二段262號3F-11", "木蘭文化事業有限公司 張椀喻"]]
+  },
+  FUNERAL: {
+    name: "告別式",
+    cols: ["NO.", "發證日", "註記", "證號", "發票日期", "發票形式", "發票抬頭", "統一編號", "發票號碼", "金額(含稅)", "申請日期", "申請人", "手機", "電話", "傳真", "持證者", "儀式名稱", "演出曲目", "語言別", "總曲數", "儀式地點", "地址", "場次", "授權期間-起年", "起月", "起日", "迄年", "迄月", "迄日", "禮儀-公司名", "禮儀-姓名", "禮儀-手機", "禮儀-電話", "禮儀-傳真", "禮儀-信箱", "寄證-郵區", "收件地址", "收件人", "收件人電話"],
+    rows: [[1, "111.04.26", "", "U2200001D", "111.04.25", "二聯式", "梁嘉育", "", "XN18813680", 3150, "111.04.22", "梁嘉育", "0912-062-512", "", "", "梁嘉育", "梁添財告別式", "我的爸爸、一生只有你、今生最愛的人、換我做妳的家後、心頭肉", "台語", "伍", "御奠園淨界紀念會館", "桃園市中壢區培英路310號", 1, 111, "05", "02", 111, "05", "02", "澤孝生命禮儀", "", "0938-566-203", "", "", "baby1126@kimo.com", 320, "桃園市八德區富榮街149之5號", "梁嘉育", "0912-062-512"], [2, "112.04.14", "", "M2304001", "112.04.14", "二聯式", "蔡麗紅", "", "KZ19376860", 3150, "112.04.13", "蔡麗紅", "0918-916379", "", "", "蔡麗紅", "林木川告別式", "溫暖的雙手", "國語", "壹", "新北市立板橋殯儀館(崇義廳)", "新北市板橋區中正路560號", 1, 112, "04", 18, 112, 4, 18, "", "", "", "", "", "", 220, "新北市板橋區民族路50號4樓", "蔡麗紅", "0918-916-379"]]
+  },
+  AREA_DISPLAY: {
+    name: "坪數-顯示器",
+    cols: ["序", "發證日", "註記", "證號", "發票日期", "發票形式", "發票抬頭", "統一編號", "發票號碼", "金額(含稅)", "申請日期", "單位名稱/持證者", "電話", "分機", "傳真", "聯絡人", "Email", "活動名稱", "使用地址", "坪數", "顯示器", "授權期間-起年", "起月", "起日", "迄年", "迄月", "迄日", "使用歌曲", "語言", "寄證-郵區", "收件地址", "收件人", "收件人電話"],
+    rows: [[1, "111.01.21", "", "S2210010F", "111.01.21", "三聯式", "國家電影及視聽文化中心", "00973691", "VL20289788", 1213, "", "國家電影及視聽文化中心", "02-85228000", "3111", "02-85222656", "張慧玲小姐", "m8006234@tfai.org.tw", "顯影現聲–影視聽文物展", "新北市新莊區文藝路2號", 69, 1, 111, "01", 12, 111, 12, 26, "一生只有你", "台語", 242, "新北市新莊區文藝路2號", "國家電影及視聽文化中心-張慧玲小姐", ""], [2, "111.01.22", "", "S2210011E", "111.01.22", "三聯式", "高雄市政府文化局駁二藝術特區", 38743684, "VL20289805", 2100, "", "高雄駁二藝術特區", "", "", "", "張蓓玲小姐", "peiling950228@gmail.com", "2022台灣燈會作品–台灣夢", "高雄市鹽埕區大勇路11號3樓", 1, 0, 111, "01", "01", 111, 12, 31, "酒女夢、悲戀的酒杯", "台語", 803, "高雄市鹽埕區大勇路11號3樓", "高雄駁二藝術特區-張蓓玲小姐", ""], [3, "111.07.22", "", "S2210010F", "111.07.22", "三聯式", "國家電影及視聽文化中心", "00973691", "BT19595361", 1213, "111.07.22", "國家電影及視聽文化中心", "02-85228000", "3111", "02-85222656", "張慧玲小姐", "m8006234@tfai.org.tw", "顯影現聲–影視聽文物展", "新北市新莊區文藝路2號", 69, 1, 111, 12, 27, 112, 12, 31, "一生只有你", "台語", 242, "新北市新莊區文藝路2號", "國家電影及視聽文化中心-張慧玲小姐", ""]]
+  },
+  HALL_ROOM: {
+    name: "大廳-宴會廳-客房",
+    cols: ["序", "發證日", "註記", "證號", "發票日期", "發票形式", "發票抬頭", "統一編號", "發票號碼", "金額(含稅)", "辦理項目", "申請日期", "持證者", "負責人", "電話", "分機", "傳真", "聯絡人", "聯絡-手機", "Email", "使用地址", "授權內容", "坪數", "客房數", "授權期間-起年", "起月", "起日", "迄年", "迄月", "迄日", "寄證-郵區", "收件地址", "收件人", "收件人電話"],
+    rows: [[1, "111.09.30", "", "L2200001I", "111.09.30", "三聯式", "榮高育樂股份有限公司", 23098173, "DV19614967", 10584, "新申辦", "111.09.30", "泰雅渡假村", "莊東榮", "04-9246-1311", "", "04-9246-1317", "李翠幸", "04-9246-1802", "t999866@atayal.com.tw", "南投縣仁愛鄉互助村清風路45號", "客房", "", 252, 111, "01", "01", 111, 12, 31, 544, "南投縣國姓郵政11號信箱", "李翠幸 經理", "04-9246-1802"], [2, "112.02.10", "", "RB2302001", "112.02.10", "三聯式", "榮高育樂股份有限公司", 23098175, "HZ19656713", 13230, "續約", "112.02.09", "泰雅渡假村", "莊東榮", "04-9246-1311", "", "04-9246-1317", "李翠幸", "04-9246-1802", "t999868@atayal.com.tw", "南投縣仁愛鄉互助村清風路47號", "客房", "", 252, 112, "01", "01", 112, 12, 31, 546, "南投縣國姓郵政11號信箱", "採購部李翠幸 經理", "04-9246-1804"], [3, "", "全省福容簽合約不用開證", "", "112.02.29", "三聯式", "豐穗國際股份有限公司", 28121976, "HZ19656684", 25200, "新申辦", "112.02.08", "豐穗國際股份有限公司", "龔保綱", "04-2310-8838", "", "04-2329-8280", "劉富國", "04-2310-8838", "jeffliu@fengsui.com.tw", "", "客房", "", 600, 111, "01", "01", 111, 12, 31, 408, "台中市南屯區文心路一段324號7樓之2", "豐穗國際股份有限公司", "04-2310-8838"]]
+  },
+  ELECTION: {
+    name: "競選活動",
+    cols: ["NO.", "發證日", "註記", "證書編號", "發票日期", "發票形式", "發票抬頭", "統一編號", "發票號碼", "金額(含稅)", "申請日期", "主辦單位", "持證-統編", "持證-電話", "持證-傳真", "持證-地址", "活動名稱", "活動地點", "活動地址", "授權內容", "宣傳車輛數", "演出曲目", "語言別", "總曲數", "活動期間-起年", "起月", "起日", "迄年", "迄月", "迄日", "業務-所屬單位", "業務-姓名", "業務-職稱", "業務-手機", "業務-電話", "業務-分機", "業務-傳真", "業務-E-mail", "寄證-郵區", "收件地址", "收件人", "收件人電話"],
+    rows: [[1, "111.09.16", "", "P2200001I", "111.09.16", "二聯式", "蔡長昆", "", "DV19614813", 8400, "111.09.15", "雲林縣麥寮鄉候選人蔡長昆", "", "05-693-3452", "", "雲林縣麥寮鄉麥津村保安林50-16號", "雲林縣麥寮鄉候選人蔡長昆競選宣傳車", "雲林縣麥寮鄉", "", "宣傳車", 2, "人在做天在看", "台語", 1, 111, 10, 20, 111, 11, 25, "蔡長昆競選總部", "蔡靜君", "助理", "0920-520-336", "", "", "05-693-1531", "denise7135@yahoo.com.tw", 638, "雲林縣麥寮鄉麥津村保安林50-16號", "蔡靜君", "0920-520-336"], [2, "111.09.21", "", "P2200002I", "111.09.21", "二聯式", "魏睿宏", "", "DV19614838", 4200, "111.09.20", "澎湖縣議員候選人魏睿宏", "", "06-993-2288", "", "澎湖縣白沙鄉赤崁村2-12號", "澎湖縣議員候選人魏睿宏", "澎湖縣白沙鄉內境", "", "宣傳車", 1, "你是我的兄弟", "台語", 1, 111, 10, "01", 111, 11, 30, "魏睿宏競選總部", "白淑琴", "助理", "0963-656-390", "06-993-2288", "", "", "bair6608@yahoo.com.tw", 894, "澎湖縣白沙鄉赤崁村2-12號", "白淑琴", "0963-656-390"], [3, "111.10.14", "", "P2200001J", "111.10.14", "二聯式", "謝玉妙", "", "DV19615059", 4200, "111.10.13", "嘉義縣中埔鄉鄉民代表候選人謝玉妙競選團隊", "", "0937-656-807", "", "嘉義縣中埔鄉和睦村富和路165附8號", "謝玉妙競選總部及宣傳車", "嘉義縣中埔鄉和睦村富和路165附8號", "", "總部、宣傳車", 1, "成功", "台語", 1, 111, 10, "01", 111, 12, 27, "謝玉妙競選總部及宣傳車", "謝玉妙", "中埔鄉民代表", "0937-656-807", "", "", "", "shaynahchen@gmail.com", 606, "嘉義縣中埔鄉和睦村富和路165附8號", "謝玉妙", "0937-656-807"]]
+  },
+};
+
+// 給每個 category 加系統欄位：
+//   - 「確認(掛號/平信)」 → 插在「寄證郵區」前面（依規格）
+//   - 「核發燈」「續約燈」 → 接在最末
+Object.values(CATEGORY_DEFS).forEach(def => {
+  // 找最後一個「寄證」開頭的郵區欄位（避開交通運輸的「郵區」=營業地址）
+  const mailZipIdx = def.cols.findIndex(c => /^寄證.*郵區$/.test(c));
+
+  if (mailZipIdx >= 0) {
+    // 插入確認欄
+    def.cols.splice(mailZipIdx, 0, '確認(掛號/平信)');
+    def.rows = def.rows.map((row, i) => {
+      const mailType = ['平信','掛號','平信'][i % 3];
+      const newRow = [...row];
+      newRow.splice(mailZipIdx, 0, mailType);
+      return newRow;
+    });
+  } else {
+    // fallback：append
+    def.cols.push('確認(掛號/平信)');
+    def.rows = def.rows.map((row, i) => [...row, ['平信','掛號','平信'][i % 3]]);
+  }
+
+  // 末尾加 核發燈 / 續約燈
+  def.cols.push('核發燈', '續約燈');
+  def.rows = def.rows.map((row, i) => {
+    const issuance = (i === 1) ? '綠' : '紅';
+    const renewal  = (i === 0) ? '紅' : (i === 2 ? '綠' : null);
+    return [...row, issuance, renewal];
+  });
+});
+
+// ===========================
+// Handsontable
+// ===========================
+
+let hot = null;
+let activeCategoryCode = 'COMPUTER_KARAOKE';
+
+function statusRenderer(instance, td, row, col, prop, value) {
+  Handsontable.renderers.TextRenderer.apply(this, arguments);
+  td.innerText = value || '—';
+  td.className = '';
+  if (value === '綠') td.classList.add('status-cell-green');
+  else if (value === '紅') td.classList.add('status-cell-red');
+  else td.style.color = '#94a3b8';
+  return td;
+}
+
+function widthFor(title) {
+  if (title === 'NO.' || title === '序') return 50;
+  if (/^(起|迄)[年月日]$|^場次$|^人數$|^坪數$|^顯示器$|^客房數$|^包廂數$|^總曲數$|^台數$|^車輛數$|^宣傳車輛數$|^分機$/.test(title)) return 60;
+  if (/^[一-鿿]{1,2}$/.test(title)) return 65;
+  if (/金額|郵區|郵遞區號/.test(title)) return 80;
+  if (/^電話|^傳真|^手機|^行動|聯絡-電話|聯絡-手機|聯絡-傳真|業務-電話|業務-手機|業務-傳真|禮儀-電話|禮儀-手機|禮儀-傳真|持證-電話|持證-傳真|收件人電話|證號到期日/.test(title)) return 105;
+  if (/證號|證書編號|發票號碼|統一編號|身分證|街頭藝人證號/.test(title)) return 110;
+  if (/抬頭|持證者|持證人|主辦單位|單位名稱|發證單位|聯絡人|現場聯絡人|代表人|負責人|姓名|職稱|收件人|聯絡人|申請人/.test(title)) return 130;
+  if (/E-mail|Email|信箱/.test(title)) return 170;
+  if (/網址/.test(title)) return 220;
+  if (/節目名稱|活動名稱|儀式名稱|平台名稱|授權內容|使用類型/.test(title)) return 180;
+  if (/演出曲目|公開傳輸曲目|使用歌曲|機號|車輛號碼/.test(title)) return 240;
+  if (/地址|場地|場所|表演場地|儀式地點|活動地點|使用地址|收件地址|寄證地址|營業地址|持證人-地址|持證-地址/.test(title)) return 220;
+  if (/辦理項目|發票形式|形式|語言別|語言|性質|提報|承辦人|備註|註記|新件|營收/.test(title)) return 85;
+  if (/確認|核發燈|續約燈/.test(title)) return 95;
+  return 95;
+}
+
+function buildColumnDefs(catCode) {
+  const def = CATEGORY_DEFS[catCode];
+  return def.cols.map((title, idx) => {
+    const c = { title: title, width: widthFor(title) };
+    if (title === 'NO.' || title === '序' || title === '證書編號' || title === '證號') c.readOnly = true;
+    if (title === '辦理項目') { c.type = 'dropdown'; c.source = ['新申辦','續約','授權延長','補發']; }
+    if (title === '發票形式' || title === '形式') { c.type = 'dropdown'; c.source = ['二聯式','三聯式','作廢']; }
+    if (title === '提報') { c.type = 'dropdown'; c.source = ['承辦','自辦']; }
+    if (title === '性質') { c.type = 'dropdown'; c.source = ['餐廳','卡拉OK','社區','其他']; }
+    if (title === '使用類型') { c.type = 'dropdown'; c.source = ['網路直播平台','實體場域','其他']; }
+    if (title === '營收/來源') { c.type = 'dropdown'; c.source = ['是','否']; }
+    if (title === '確認(掛號/平信)') { c.type = 'dropdown'; c.source = ['掛號','平信']; }
+    if (title === '核發燈' || title === '續約燈') { c.readOnly = true; c.renderer = statusRenderer; }
+    if (title === '金額(含稅)') { c.type = 'numeric'; c.numericFormat = {pattern: '0,0'}; }
+    return c;
+  });
+}
+
+function initHot() {
+  const container = document.getElementById('hot-container');
+  const def = CATEGORY_DEFS[activeCategoryCode];
+  hot = new Handsontable(container, {
+    data: def.rows,
+    colHeaders: def.cols,
+    columns: buildColumnDefs(activeCategoryCode),
+    rowHeaders: true,
+    height: '100%',
+    width: '100%',
+    fixedColumnsStart: 2,
+    licenseKey: 'non-commercial-and-evaluation',
+    stretchH: 'none',
+    manualColumnResize: true,
+    manualRowResize: true,
+    filters: true,
+    dropdownMenu: true,
+    contextMenu: true,
+    afterChange: (changes, source) => {
+      if (source === 'edit') {
+        console.log('[PATCH /api/records/{id}]', changes);
+        // 模擬狀態燈翻轉：當改了「發票號碼」→ 核發燈翻綠
+        const [row, colIdx, oldVal, newVal] = changes[0];
+        const def = CATEGORY_DEFS[activeCategoryCode];
+        const colName = def.cols[colIdx];
+        if (colName === '發票號碼' && newVal) {
+          const rowData = hot.getSourceDataAtRow(row);
+          rowData[def.cols.length - 2] = '綠';
+          hot.render();
+        }
+      }
+    }
+  });
+}
+
+// ===========================
+// Navigation
+// ===========================
+
+function login() { loginAs('officer_b'); }
+
+let currentRole = 'officer_b';
+
+function loginAs(role) {
+  currentRole = role;
+  const roleMap = {
+    officer_a:  { name:'陳大華', initial:'A', badge:'承辦 A (男)', sub:'單場次', defaultView:'workspace' },
+    officer_b:  { name:'王小美', initial:'B', badge:'承辦 B (女)', sub:'其他',   defaultView:'workspace' },
+    accountant: { name:'陳會計', initial:'會', badge:'會計部',    sub:'發票',   defaultView:'invoice' },
+    issuer:     { name:'張核發', initial:'核', badge:'核發人員',  sub:'證書',   defaultView:'workspace' },
+  };
+  const r = roleMap[role];
+  document.getElementById('login-screen').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  document.getElementById('user-name').innerText = r.name;
+  document.getElementById('user-avatar').innerText = r.initial;
+  document.getElementById('role-badge').innerText = r.badge;
+  document.getElementById('status-role').innerText = role;
+  document.getElementById('printOperator').innerText = r.name;
+  if (!hot) setTimeout(initHot, 50);
+
+  // Workspace badge 數字依角色
+  const badgeMap = { officer_a:'3', officer_b:'5', accountant:'8', issuer:'3' };
+  document.getElementById('nav-workspace-badge').innerText = badgeMap[role] || '0';
+
+  // 套用角色權限：sidebar 過濾 + 總表唯讀控制
+  setTimeout(() => applyRolePermissions(role), 100);
+
+  // 進入預設視圖
+  setTimeout(() => {
+    document.querySelectorAll('main section').forEach(s => s.classList.add('hidden'));
+    document.getElementById(`view-${r.defaultView}`).classList.remove('hidden');
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    if (r.defaultView === 'workspace') {
+      document.getElementById('nav-workspace').classList.add('active');
+      renderWorkspace();
+    } else if (r.defaultView === 'invoice') {
+      document.getElementById('nav-invoice')?.classList.add('active');
+      renderInvoiceTable();
+    }
+  }, 100);
+}
+
+// ===========================
+// 角色權限套用
+// ===========================
+function applyRolePermissions(role) {
+  // 1) Sidebar：依 data-roles 顯示/隱藏 nav 項目
+  document.querySelectorAll('[data-roles]').forEach(el => {
+    const allowed = el.dataset.roles.split(',').map(s => s.trim());
+    el.style.display = (allowed.includes('all') || allowed.includes(role)) ? '' : 'none';
+  });
+
+  // 2) 總表（records）：會計唯讀；其他角色可編輯
+  const isReadOnly = (role === 'accountant');
+  if (hot) hot.updateSettings({ readOnly: isReadOnly });
+  const banner = document.getElementById('records-readonly-banner');
+  if (banner) banner.classList.toggle('hidden', !isReadOnly);
+  const permTag = document.getElementById('nav-records-perm');
+  if (permTag) {
+    permTag.innerText = isReadOnly ? '唯讀' : '編輯';
+    permTag.className = 'ml-auto text-[10px] ' + (isReadOnly ? 'text-warn font-medium' : 'text-ok');
+  }
+
+  // 3) 隱藏總表頁的「新增 / 從 LINE 匯入 / 產生證書」按鈕（會計）
+  document.querySelectorAll('#view-records .btn-primary, #view-records .btn-teal').forEach(b => {
+    b.style.display = isReadOnly ? 'none' : '';
+  });
+}
+
+// ===========================
+// 續約頁：卡片 vs Excel 編輯模式
+// ===========================
+let renewalHot = null;
+
+function setRenewalMode(mode) {
+  const cardEl = document.getElementById('renewal-card-mode');
+  const excelEl = document.getElementById('renewal-excel-mode');
+  const btnCard = document.getElementById('btn-renewal-mode-card');
+  const btnExcel = document.getElementById('btn-renewal-mode-excel');
+
+  if (mode === 'excel') {
+    cardEl.classList.add('hidden');
+    excelEl.classList.remove('hidden');
+    btnCard.className = 'btn btn-ghost text-xs';
+    btnExcel.className = 'btn btn-primary text-xs';
+    if (!renewalHot) initRenewalHot();
+  } else {
+    cardEl.classList.remove('hidden');
+    excelEl.classList.add('hidden');
+    btnCard.className = 'btn btn-primary text-xs';
+    btnExcel.className = 'btn btn-ghost text-xs';
+  }
+}
+
+const renewalData = [
+  { holder:'玉亭餐廳',                          taxId:'79841273', cat:'電腦伴唱機', endDate:'115.5.14',  remain:-2,  status:'紅', sub:'未續約', mailRecv:'陳玉貞', mailAddr:'104 台北市中山區中山北路一段135巷27號', mailType:'平信', note:'' },
+  { holder:'尚海社區管理委員會',                 taxId:'30139924', cat:'社區管委會', endDate:'115.5.9',   remain:-7,  status:'紅', sub:'未續約', mailRecv:'駱杏娟', mailAddr:'251 新北市淡水區淡金路2號',           mailType:'掛號', note:'' },
+  { holder:'高雄市三民區高泰社區發展協會',         taxId:'94990981', cat:'公益伴唱機', endDate:'115.5.22',  remain:6,   status:'紅', sub:'未續約', mailRecv:'高雄市三民區高泰社區發展協會', mailAddr:'807 高雄市三民區同盟二路60號', mailType:'平信', note:'' },
+  { holder:'小米花園 KTV',                       taxId:'88812345', cat:'自助KTV',    endDate:'115.5.28',  remain:12,  status:'紅', sub:'未續約', mailRecv:'李美雲', mailAddr:'401 台中市東區建成路200號',           mailType:'平信', note:'' },
+  { holder:'街頭好聲音工作室',                    taxId:'12345678', cat:'街頭藝人',    endDate:'115.5.30',  remain:14,  status:'紅', sub:'未續約', mailRecv:'林志強', mailAddr:'241 新北市三重區重新路四段',          mailType:'掛號', note:'已聯繫' },
+  { holder:'銀櫃視聽有限公司',                    taxId:'27262717', cat:'自助KTV',    endDate:'115.5.15',  remain:-1,  status:'綠', sub:'已續約', mailRecv:'柯明正', mailAddr:'408 台中市南屯區黎明路',              mailType:'平信', note:'新申請書 116/5/14' },
+  { holder:'康橋飯店宴會廳',                     taxId:'55667788', cat:'大廳-客房',   endDate:'115.5.20',  remain:4,   status:'綠', sub:'已續約', mailRecv:'王經理', mailAddr:'235 新北市中和區中山路二段',          mailType:'掛號', note:'新申請書 116/5/19' },
+  { holder:'劉文權（街頭藝人）',                  taxId:'',         cat:'街頭藝人',    endDate:'115.5.11',  remain:-5,  status:'綠', sub:'已續約', mailRecv:'劉文權', mailAddr:'105 台北市松山區八德路四段',         mailType:'平信', note:'新申請書 116/5/10' },
+];
+
+function initRenewalHot() {
+  const c = document.getElementById('renewal-hot-container');
+  renewalHot = new Handsontable(c, {
+    data: renewalData,
+    columns: [
+      { data:'sub',       title:'子清單',        width:75,  type:'dropdown', source:['未續約','已續約'] },
+      { data:'status',    title:'狀態',          width:50,  readOnly:true, renderer:statusRenderer },
+      { data:'holder',    title:'持證者',        width:170 },
+      { data:'taxId',     title:'統一編號',      width:90 },
+      { data:'cat',       title:'類別',          width:100 },
+      { data:'endDate',   title:'授權迄日',      width:90 },
+      { data:'remain',    title:'剩餘天數',      width:75,  type:'numeric', readOnly:true, className:'htCenter' },
+      { data:'mailRecv',  title:'收件人',        width:120 },
+      { data:'mailAddr',  title:'寄信地址',      width:280 },
+      { data:'mailType',  title:'確認(掛號/平信)', width:120, type:'dropdown', source:['掛號','平信'] },
+      { data:'note',      title:'備註',          width:180 },
+    ],
+    colHeaders: true, rowHeaders: true,
+    height: '100%', width: '100%',
+    licenseKey: 'non-commercial-and-evaluation',
+    fixedColumnsStart: 2,
+    manualColumnResize: true,
+    filters: true, dropdownMenu: true, contextMenu: true,
+    afterChange: (changes, source) => {
+      if (source === 'edit') console.log('[PATCH /api/renewals/{id}]', changes);
+    }
+  });
+}
+
+function renderWorkspace() {
+  // 隱藏所有角色版本，顯示當前角色
+  ['officer_a','officer_b','accountant','issuer'].forEach(r => {
+    const el = document.getElementById(`ws-${r}`);
+    if (el) el.classList.add('hidden');
+  });
+  const curr = document.getElementById(`ws-${currentRole}`);
+  if (curr) curr.classList.remove('hidden');
+  // 會計直接跳到印發票
+  if (currentRole === 'accountant') {
+    setTimeout(() => switchViewBare('invoice'), 0);
+  }
+}
+
+function switchViewBare(view) {
+  document.querySelectorAll('main section').forEach(s => s.classList.add('hidden'));
+  document.getElementById(`view-${view}`).classList.remove('hidden');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const navMap = { workspace:'nav-workspace', invoice:'nav-invoice' };
+  if (navMap[view]) document.getElementById(navMap[view])?.classList.add('active');
+  if (view === 'invoice') renderInvoiceTable();
+  if (view === 'workspace') renderWorkspace();
+}
+
+function logout() {
+  document.getElementById('login-screen').classList.remove('hidden');
+  document.getElementById('app').classList.add('hidden');
+}
+
+function switchView(view) {
+  document.querySelectorAll('main section').forEach(s => s.classList.add('hidden'));
+  document.getElementById(`view-${view}`).classList.remove('hidden');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  if (event && event.target) event.target.closest('.nav-item')?.classList.add('active');
+  if (view === 'invoice') renderInvoiceTable();
+  if (view === 'workspace') renderWorkspace();
+}
+
+function switchCategory(el) {
+  document.querySelectorAll('.cat-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  const cat = el.dataset.cat;
+  if (!cat || !CATEGORY_DEFS[cat]) return;
+  activeCategoryCode = cat;
+  if (hot) {
+    const def = CATEGORY_DEFS[cat];
+    hot.updateSettings({
+      colHeaders: def.cols,
+      columns: buildColumnDefs(cat),
+    });
+    hot.loadData(def.rows);
+  }
+}
+
+// ===========================
+// INVOICE PRINTING (會計頁)
+// ===========================
+
+const PRODUCT_NAMES = [
+  '音樂公開演出授權費',
+  '音樂公開播送授權費',
+  '音樂公開傳輸授權費',
+  '權利金收入',
+  '權利金',
+  '作廢',
+];
+const INVOICE_TYPES = ['二聯式', '三聯式', '作廢'];
+
+// 取一些示意明細（模擬 5 月已開的 + 待開的）
+let invoiceRows = [
+  { type:'三聯式', title:'玉亭餐廳',           taxId:'79841273', product:'音樂公開演出授權費', netPrice:3500,  qty:1, date:'115.05.02', invNo:'TC20290101', custId:'C00231', note:'' },
+  { type:'三聯式', title:'尚海社區管理委員會',  taxId:'30139924', product:'音樂公開播送授權費', netPrice:21600, qty:1, date:'115.05.04', invNo:'TC20290102', custId:'C00112', note:'掛號寄出' },
+  { type:'二聯式', title:'劉文權',             taxId:'',         product:'音樂公開演出授權費', netPrice:500,   qty:1, date:'115.05.05', invNo:'TC20290103', custId:'C00308', note:'街頭藝人' },
+  { type:'三聯式', title:'高雄市三民區高泰社區發展協會', taxId:'94990981', product:'音樂公開播送授權費', netPrice:3500, qty:1, date:'115.05.08', invNo:'TC20290104', custId:'C00451', note:'' },
+  { type:'三聯式', title:'銀櫃視聽有限公司',    taxId:'27262717', product:'音樂公開演出授權費', netPrice:60000, qty:1, date:'115.05.10', invNo:'TC20290105', custId:'C00077', note:'自助 KTV' },
+  // 待開立（從總表撈、會計尚未填發票號）
+  { type:'三聯式', title:'蘇活餐酒館',         taxId:'',         product:'音樂公開演出授權費', netPrice:3500,  qty:1, date:'',          invNo:'', custId:'C00510', note:'待會計開立' },
+  { type:'三聯式', title:'川香小館',            taxId:'83451122', product:'音樂公開演出授權費', netPrice:3500,  qty:1, date:'',          invNo:'', custId:'C00220', note:'待會計開立' },
+  { type:'二聯式', title:'許志成',              taxId:'',         product:'音樂公開演出授權費', netPrice:7000,  qty:1, date:'',          invNo:'', custId:'C00622', note:'待會計開立' },
+];
+
+function renderInvoiceTable() {
+  const tbody = document.getElementById('invoiceTbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  let totQty = 0, totNet = 0, totTax = 0, totAmt = 0;
+
+  invoiceRows.forEach((r, idx) => {
+    const isVoid = r.type === '作廢';
+    const isPending = !r.invNo;
+    const net = r.netPrice * r.qty;
+    const tax = Math.round(net * 0.05);
+    const amt = net + tax;
+
+    if (!isVoid && !isPending) {
+      totQty += r.qty; totNet += net; totTax += tax; totAmt += amt;
+    }
+
+    const tr = document.createElement('tr');
+    tr.className = (isVoid ? 'void ' : '') + (isPending ? 'bg-yellow-50 ' : '');
+
+    tr.innerHTML = `
+      <td class="text-center">${idx+1}</td>
+      <td>
+        <select onchange="updateInvoice(${idx}, 'type', this.value)" class="border-0 bg-transparent">
+          ${INVOICE_TYPES.map(t => `<option ${t===r.type?'selected':''}>${t}</option>`).join('')}
+        </select>
+      </td>
+      <td contenteditable class="editable" oninput="updateInvoice(${idx}, 'title', this.innerText)">${r.title || ''}</td>
+      <td contenteditable class="editable" oninput="updateInvoice(${idx}, 'taxId', this.innerText)">${r.taxId || ''}</td>
+      <td>
+        <select onchange="updateInvoice(${idx}, 'product', this.value)" class="border-0 bg-transparent">
+          ${PRODUCT_NAMES.map(p => `<option ${p===r.product?'selected':''}>${p}</option>`).join('')}
+        </select>
+      </td>
+      <td contenteditable class="editable text-right" oninput="updateInvoice(${idx}, 'netPrice', parseInt(this.innerText)||0)">${r.netPrice.toLocaleString()}</td>
+      <td contenteditable class="editable text-center" oninput="updateInvoice(${idx}, 'qty', parseInt(this.innerText)||0)">${r.qty}</td>
+      <td class="computed text-right">${net.toLocaleString()}</td>
+      <td class="computed text-right">${tax.toLocaleString()}</td>
+      <td class="computed text-right font-bold">${amt.toLocaleString()}</td>
+      <td contenteditable class="editable" oninput="updateInvoice(${idx}, 'date', this.innerText)">${r.date || ''}</td>
+      <td contenteditable class="editable ${isPending ? 'text-warn' : ''}" oninput="updateInvoice(${idx}, 'invNo', this.innerText)">${r.invNo || '（待填）'}</td>
+      <td contenteditable class="editable" oninput="updateInvoice(${idx}, 'custId', this.innerText)">${r.custId || ''}</td>
+      <td contenteditable class="editable" oninput="updateInvoice(${idx}, 'note', this.innerText)">${r.note || ''}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('totQty').innerText = totQty;
+  document.getElementById('totNet').innerText = totNet.toLocaleString();
+  document.getElementById('totAmount').innerText = 'NT$ ' + totAmt.toLocaleString();
+}
+
+function updateInvoice(idx, field, val) {
+  invoiceRows[idx][field] = val;
+  if (['netPrice','qty','type'].includes(field)) {
+    renderInvoiceTable();  // 重算總計
+  }
+}
+
+function addInvoiceRow() {
+  invoiceRows.push({
+    type:'三聯式', title:'', taxId:'', product:'音樂公開演出授權費',
+    netPrice:0, qty:1, date:'', invNo:'', custId:'', note:''
+  });
+  renderInvoiceTable();
+}
+
+function pullFromRecords() {
+  alert('Demo：實際系統會自動從總表撈本月「核發狀態=紅 + 申請日期在本月」的待開立記錄，自動帶入抬頭、統編、金額。');
+}
+
+function exportInvoiceCSV() {
+  const headers = ['序號','發票型式','抬頭','統一編號','品名','未稅單價','數量','未稅小計','稅額','總金額','開立日期','發票號碼','客戶編號','備註'];
+  const rows = invoiceRows.map((r, i) => {
+    const net = r.netPrice * r.qty;
+    const tax = Math.round(net * 0.05);
+    return [i+1, r.type, r.title, r.taxId, r.product, r.netPrice, r.qty, net, tax, net+tax, r.date, r.invNo, r.custId, r.note];
+  });
+  const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = '115年05月_發票列印明細.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// 列印前更新時間戳
+window.addEventListener('beforeprint', () => {
+  document.getElementById('printTime').innerText = new Date().toLocaleString('zh-Hant');
+});
+
+function showGenerateModal(label) {
+  document.getElementById('gen-modal-subtitle').innerText = `產生「${label}」中…`;
+  document.getElementById('gen-modal').classList.remove('hidden');
+}
+
+function closeModal(e) {
+  if (e && e.target.id !== 'gen-modal') return;
+  document.getElementById('gen-modal').classList.add('hidden');
+}
+
+// 預設不登入，等使用者按按鈕
+</script>
+
+</body>
+</html>

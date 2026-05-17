@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  font-family: 'Noto Sans TC', system-ui, sans-serif;
+  background: #F8F9FA;
+  color: #1A1A2E;
+}
+
+* { box-sizing: border-box; }
