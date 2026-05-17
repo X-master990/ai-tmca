@@ -1,16 +1,111 @@
 import { useMemo, useState } from 'react';
 import { COLUMNS, Category, RecordRow } from '../api/records';
+import { PermissionsOut, patchRecord } from '../api/permissions';
 
 interface Props {
   categories: Category[];
   recordsByCategory: Map<string, RecordRow[]>;
+  permissions: PermissionsOut | null;
 }
 
 const ROW_CAP = 500;
 
-export default function RecordsTable({ categories, recordsByCategory }: Props) {
+const DATE_FIELDS = new Set(['issued_date', 'invoice_date', 'apply_date', 'period_start', 'period_end']);
+const INT_FIELDS = new Set(['amount', 'qty']);
+
+function formatVal(v: unknown): string {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'boolean') return v ? '✓' : '';
+  return String(v);
+}
+
+function EditableCell({
+  row,
+  field,
+  editable,
+  width,
+  onSave,
+}: {
+  row: RecordRow;
+  field: string;
+  editable: boolean;
+  width: number;
+  onSave: (newValue: unknown) => Promise<void>;
+}) {
+  const initial = formatVal((row as unknown as { [k: string]: unknown })[field]);
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(initial);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function commit() {
+    setEditing(false);
+    if (value === initial) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      let raw: unknown = value;
+      if (value === '') raw = null;
+      else if (INT_FIELDS.has(field)) raw = parseInt(value, 10);
+      await onSave(raw);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '存檔失敗');
+      setValue(initial);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!editable) {
+    return (
+      <td
+        className="px-2 py-1 border border-slate-200 truncate text-soft"
+        style={{ width, maxWidth: width, background: '#fafafa' }}
+        title={initial}
+      >
+        {initial}
+      </td>
+    );
+  }
+
+  if (editing) {
+    return (
+      <td className="border border-teal" style={{ width, maxWidth: width, padding: 0 }}>
+        <input
+          autoFocus
+          type={DATE_FIELDS.has(field) ? 'date' : 'text'}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+            if (e.key === 'Escape') {
+              setValue(initial);
+              setEditing(false);
+            }
+          }}
+          className="w-full h-full px-2 py-1 text-xs outline-none"
+        />
+      </td>
+    );
+  }
+
+  return (
+    <td
+      className={`px-2 py-1 border truncate cursor-cell hover:bg-cyan/40 ${err ? 'bg-red-50 border-warn' : 'border-slate-200'}`}
+      style={{ width, maxWidth: width }}
+      title={err || initial}
+      onDoubleClick={() => setEditing(true)}
+    >
+      {busy ? <span className="text-soft">⏳</span> : value}
+    </td>
+  );
+}
+
+export default function RecordsTable({ categories, recordsByCategory, permissions }: Props) {
   const [activeCode, setActiveCode] = useState<string>(categories[0]?.code ?? '');
   const [filter, setFilter] = useState('');
+  const [, forceRefresh] = useState(0);
 
   const fullList = useMemo(
     () => recordsByCategory.get(activeCode) || [],
@@ -29,6 +124,18 @@ export default function RecordsTable({ categories, recordsByCategory }: Props) {
   }, [fullList, filter]);
 
   const activeRecords = useMemo(() => filtered.slice(0, ROW_CAP), [filtered]);
+
+  const editableFields = useMemo(
+    () => new Set(permissions?.editable_fields_by_category[activeCode] ?? []),
+    [permissions, activeCode],
+  );
+
+  async function saveCell(row: RecordRow, field: string, newValue: unknown) {
+    const updated = await patchRecord(row.id, { [field]: newValue });
+    // 把回傳的 row 寫回 recordsByCategory（mutate in place）
+    Object.assign(row, updated);
+    forceRefresh((n) => n + 1);
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -50,7 +157,7 @@ export default function RecordsTable({ categories, recordsByCategory }: Props) {
         ))}
       </div>
 
-      {/* Filter bar */}
+      {/* Filter + permission status */}
       <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-center gap-3">
         <input
           type="text"
@@ -62,9 +169,15 @@ export default function RecordsTable({ categories, recordsByCategory }: Props) {
         <div className="text-xs text-soft">
           {filter.trim()
             ? <>篩出 <span className="font-mono text-ink">{filtered.length}</span> 筆</>
-            : <>共 <span className="font-mono text-ink">{fullList.length}</span> 筆</>
-          }
-          {filtered.length > ROW_CAP && <>，僅顯示前 {ROW_CAP} 筆（用搜尋縮小範圍）</>}
+            : <>共 <span className="font-mono text-ink">{fullList.length}</span> 筆</>}
+          {filtered.length > ROW_CAP && <>，僅顯示前 {ROW_CAP} 筆</>}
+        </div>
+        <div className="text-xs">
+          {editableFields.size === 0 ? (
+            <span className="text-warn">👁 唯讀</span>
+          ) : (
+            <span className="text-ok">✏️ 可編 {editableFields.size} 欄</span>
+          )}
         </div>
       </div>
 
@@ -80,6 +193,9 @@ export default function RecordsTable({ categories, recordsByCategory }: Props) {
                   style={{ width: c.width, minWidth: c.width }}
                 >
                   {c.label}
+                  {editableFields.has(c.key as string) && (
+                    <span className="ml-1 text-ok" title="可編輯">✏️</span>
+                  )}
                 </th>
               ))}
             </tr>
@@ -91,22 +207,28 @@ export default function RecordsTable({ categories, recordsByCategory }: Props) {
                 className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}
               >
                 {COLUMNS.map((c) => {
-                  const v = (r as unknown as { [k: string]: unknown })[c.key as string];
-                  const display =
-                    v === null || v === undefined
-                      ? ''
-                      : typeof v === 'boolean'
-                        ? v ? '✓' : ''
-                        : String(v);
+                  const field = c.key as string;
+                  // id 欄位永遠唯讀
+                  if (field === 'id') {
+                    return (
+                      <td
+                        key={field}
+                        className="px-2 py-1 border border-slate-200 truncate text-soft font-mono"
+                        style={{ width: c.width, maxWidth: c.width }}
+                      >
+                        {r.id}
+                      </td>
+                    );
+                  }
                   return (
-                    <td
-                      key={c.key as string}
-                      className="px-2 py-1 border border-slate-200 truncate"
-                      style={{ width: c.width, maxWidth: c.width }}
-                      title={display}
-                    >
-                      {display}
-                    </td>
+                    <EditableCell
+                      key={field}
+                      row={r}
+                      field={field}
+                      editable={editableFields.has(field)}
+                      width={c.width}
+                      onSave={(v) => saveCell(r, field, v)}
+                    />
                   );
                 })}
               </tr>

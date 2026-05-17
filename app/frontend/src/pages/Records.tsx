@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Category, RecordRow, fetchCategories, fetchRecords } from '../api/records';
+import { PermissionsOut, fetchPermissions } from '../api/permissions';
 import { useAuthStore } from '../store/auth';
 import RecordsTable from '../components/RecordsTable';
 
@@ -9,6 +10,7 @@ export default function Records() {
   const { user } = useAuthStore();
   const [categories, setCategories] = useState<Category[] | null>(null);
   const [recordsByCategory, setRecordsByCategory] = useState<Map<string, RecordRow[]> | null>(null);
+  const [permissions, setPermissions] = useState<PermissionsOut | null>(null);
   const [progress, setProgress] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
 
@@ -16,10 +18,14 @@ export default function Records() {
     let alive = true;
     (async () => {
       try {
-        setProgress('載入 categories…');
-        const cats = await fetchCategories();
+        setProgress('載入 categories 與 permissions…');
+        const [cats, perms] = await Promise.all([
+          fetchCategories(),
+          fetchPermissions(),
+        ]);
         if (!alive) return;
         setCategories(cats);
+        setPermissions(perms);
 
         setProgress(`載入 records (0 / ${cats.length})…`);
         const map = new Map<string, RecordRow[]>();
@@ -83,7 +89,11 @@ export default function Records() {
         </div>
       </div>
       <div style={{ flex: 1, minHeight: 0 }}>
-        <RecordsTable categories={categories} recordsByCategory={recordsByCategory} />
+        <RecordsTable
+          categories={categories}
+          recordsByCategory={recordsByCategory}
+          permissions={permissions}
+        />
       </div>
     </div>
   );
