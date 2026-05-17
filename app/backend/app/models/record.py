@@ -40,7 +40,7 @@ class Record(Base):
     )
 
     # 識別
-    cert_no: Mapped[str | None] = mapped_column(String(40), unique=True, index=True)
+    cert_no: Mapped[str | None] = mapped_column(String(40), index=True)
     issued_date: Mapped[date | None] = mapped_column(Date)
     note: Mapped[str | None] = mapped_column(Text)
 
