@@ -82,8 +82,10 @@ export default function Records() {
           {user?.display_name} · <span className="text-teal">{user?.role}</span>
         </div>
       </div>
-      <div className="flex-1 min-h-0">
-        <UniverSheet categories={categories} recordsByCategory={recordsByCategory} />
+      <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+        <div style={{ position: 'absolute', inset: 0 }}>
+          <UniverSheet categories={categories} recordsByCategory={recordsByCategory} />
+        </div>
       </div>
     </div>
   );

@@ -173,14 +173,17 @@ export default function UniverSheet({ categories, recordsByCategory }: Props) {
   }, [categories, recordsByCategory]);
 
   return (
-    <div className="w-full h-full relative" style={{ minHeight: 600 }}>
+    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
       {error && (
         <div className="absolute top-0 left-0 right-0 z-10 bg-red-50 border border-red-300 p-4 m-2 rounded text-xs text-warn font-mono whitespace-pre-wrap max-h-80 overflow-auto">
           <div className="font-bold mb-1">Univer 載入錯誤：</div>
           {error}
         </div>
       )}
-      <div ref={containerRef} className="w-full h-full" style={{ minHeight: 600 }} />
+      <div
+        ref={containerRef}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+      />
     </div>
   );
 }
