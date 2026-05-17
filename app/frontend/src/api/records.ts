@@ -1,0 +1,108 @@
+import { api } from './client';
+
+export interface Category {
+  code: string;
+  name_zh: string;
+  sheet_name: string | null;
+  assigned_role: string;
+  sort_order: number | null;
+  record_count: number;
+}
+
+export interface RecordRow {
+  id: number;
+  category_code: string;
+  cert_no: string | null;
+  issued_date: string | null;
+  note: string | null;
+  invoice_date: string | null;
+  invoice_type: string | null;
+  invoice_title: string | null;
+  tax_id: string | null;
+  invoice_no: string | null;
+  amount: number | null;
+  source: string | null;
+  officer: string | null;
+  action_type: string | null;
+  apply_date: string | null;
+  applicant_name: string | null;
+  applicant_id: string | null;
+  applicant_mobile: string | null;
+  applicant_phone: string | null;
+  applicant_fax: string | null;
+  holder_name: string | null;
+  holder_type: string | null;
+  use_zip: string | null;
+  use_address: string | null;
+  onsite_name: string | null;
+  onsite_mobile: string | null;
+  onsite_phone: string | null;
+  onsite_ext: string | null;
+  onsite_fax: string | null;
+  qty: number | null;
+  brand: string | null;
+  serial_no: string | null;
+  period_start: string | null;
+  period_end: string | null;
+  mail_type: string | null;
+  mail_zip: string | null;
+  mail_address: string | null;
+  mail_recipient: string | null;
+  mail_phone: string | null;
+  paper_application: boolean;
+  paper_remittance: boolean;
+  paper_official_doc: boolean;
+  issuance_status: string;
+  renewal_status: string | null;
+  extra: RecordExtra;
+  created_at: string;
+  updated_at: string;
+}
+
+export type RecordExtra = { [key: string]: string | number | boolean | null };
+
+export const COLUMNS: { key: keyof RecordRow; label: string; width: number }[] = [
+  { key: 'id', label: 'ID', width: 60 },
+  { key: 'cert_no', label: '證書編號', width: 120 },
+  { key: 'issued_date', label: '發證日', width: 100 },
+  { key: 'invoice_date', label: '發票日期', width: 100 },
+  { key: 'invoice_type', label: '發票形式', width: 80 },
+  { key: 'invoice_title', label: '發票抬頭', width: 200 },
+  { key: 'tax_id', label: '統一編號', width: 100 },
+  { key: 'invoice_no', label: '發票號碼', width: 120 },
+  { key: 'amount', label: '金額', width: 90 },
+  { key: 'source', label: '提報', width: 70 },
+  { key: 'officer', label: '承辦人', width: 90 },
+  { key: 'action_type', label: '辦理項目', width: 100 },
+  { key: 'apply_date', label: '申請日期', width: 100 },
+  { key: 'applicant_name', label: '申請人', width: 120 },
+  { key: 'applicant_id', label: '身分證號', width: 110 },
+  { key: 'applicant_mobile', label: '行動', width: 130 },
+  { key: 'applicant_phone', label: '電話', width: 130 },
+  { key: 'applicant_fax', label: '傳真', width: 130 },
+  { key: 'holder_name', label: '持證者', width: 200 },
+  { key: 'holder_type', label: '性質/類型', width: 120 },
+  { key: 'use_zip', label: '郵遞區號', width: 80 },
+  { key: 'use_address', label: '使用地址', width: 240 },
+  { key: 'onsite_name', label: '現場聯絡人', width: 100 },
+  { key: 'onsite_mobile', label: '現場手機', width: 130 },
+  { key: 'onsite_phone', label: '現場電話', width: 130 },
+  { key: 'onsite_ext', label: '分機', width: 60 },
+  { key: 'onsite_fax', label: '現場傳真', width: 130 },
+  { key: 'qty', label: '台數', width: 60 },
+  { key: 'brand', label: '廠牌', width: 100 },
+  { key: 'serial_no', label: '機號', width: 240 },
+  { key: 'period_start', label: '授權起', width: 110 },
+  { key: 'period_end', label: '授權迄', width: 110 },
+  { key: 'mail_zip', label: '寄證郵區', width: 80 },
+  { key: 'mail_address', label: '寄證地址', width: 240 },
+  { key: 'mail_recipient', label: '收件人', width: 140 },
+  { key: 'mail_phone', label: '收件人電話', width: 130 },
+  { key: 'issuance_status', label: '核發狀態', width: 80 },
+  { key: 'renewal_status', label: '續約狀態', width: 80 },
+  { key: 'note', label: '註記', width: 200 },
+];
+
+export const fetchCategories = () => api<Category[]>('/api/categories');
+export const fetchRecords = (code: string) =>
+  api<RecordRow[]>(`/api/records?category_code=${encodeURIComponent(code)}`);

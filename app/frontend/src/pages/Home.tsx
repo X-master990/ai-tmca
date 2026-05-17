@@ -35,15 +35,12 @@ export default function Home() {
           </button>
         </div>
 
-        <div className="bg-cyan/30 rounded-lg p-5 mb-6">
-          <div className="text-xs uppercase tracking-wide text-soft mb-2">
-            Phase 1 · 認證完成
-          </div>
-          <div className="text-sm text-ink">
-            登入成功。下一步：Phase 2 將匯入 110-115 年總表，Phase 3 開啟類 Excel
-            介面。
-          </div>
-        </div>
+        <button
+          onClick={() => navigate('/records')}
+          className="w-full bg-navy text-white py-3 rounded-lg font-medium hover:bg-teal transition mb-6 text-base"
+        >
+          📊 進入總表
+        </button>
 
         <div className="border-t border-slate-200 pt-6 space-y-2 text-sm">
           <div className="flex justify-between">

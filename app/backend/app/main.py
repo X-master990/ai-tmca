@@ -7,6 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from app.api.auth import router as auth_router
+from app.api.categories import router as categories_router
+from app.api.records import router as records_router
 from app.config import settings
 from app.database import engine
 
@@ -41,6 +43,8 @@ app.add_middleware(
 
 
 app.include_router(auth_router)
+app.include_router(categories_router)
+app.include_router(records_router)
 
 
 @app.get("/api/health")
