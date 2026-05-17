@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Category, RecordRow, fetchCategories, fetchRecords } from '../api/records';
 import { useAuthStore } from '../store/auth';
-import UniverSheet from '../components/UniverSheet';
+import RecordsTable from '../components/RecordsTable';
 
 export default function Records() {
   const navigate = useNavigate();
@@ -82,10 +82,8 @@ export default function Records() {
           {user?.display_name} · <span className="text-teal">{user?.role}</span>
         </div>
       </div>
-      <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
-        <div style={{ position: 'absolute', inset: 0 }}>
-          <UniverSheet categories={categories} recordsByCategory={recordsByCategory} />
-        </div>
+      <div style={{ flex: 1, minHeight: 0 }}>
+        <RecordsTable categories={categories} recordsByCategory={recordsByCategory} />
       </div>
     </div>
   );
