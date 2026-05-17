@@ -9,8 +9,8 @@
      B.id ≠ R.id
      → 表示 R 已被 B 續約 → '綠'
    - 否則：
-     - period_end < today + 30d → '紅'（含已過期）
-     - 其餘 → '灰'
+     - period_end 在「今天 ~ 30 天後」之間 → '紅'（即將到期、待跟進）
+     - 其餘（含早已過期、還很遠）→ '灰'
 2. 無 holder_name 或 period_end → '灰'
 
 性能：一條 UPDATE…CASE…EXISTS… 對 14k 筆約 < 1 秒。
@@ -40,7 +40,7 @@ COMPUTE_SQL = text(
               AND r2.period_end > r.period_end
               AND r2.id <> r.id
         ) THEN '綠'
-        WHEN r.period_end <= CURRENT_DATE + INTERVAL '30 days' THEN '紅'
+        WHEN r.period_end BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '30 days' THEN '紅'
         ELSE '灰'
     END
     """
