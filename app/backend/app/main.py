@@ -10,6 +10,8 @@ from app.api.auth import router as auth_router
 from app.api.categories import router as categories_router
 from app.api.records import router as records_router
 from app.api.renewals import router as renewals_router
+from app.api.reports import router as reports_router
+from app.api.search import router as search_router
 from app.config import settings
 from app.database import engine
 from app.services.scheduler import start_scheduler, stop_scheduler
@@ -50,6 +52,8 @@ app.include_router(auth_router)
 app.include_router(categories_router)
 app.include_router(records_router)
 app.include_router(renewals_router)
+app.include_router(reports_router)
+app.include_router(search_router)
 
 
 @app.get("/api/health")

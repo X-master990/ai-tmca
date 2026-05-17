@@ -48,6 +48,18 @@ export default function Home() {
           >
             🔁 續約管理
           </button>
+          <button
+            onClick={() => navigate('/search')}
+            className="bg-white border border-navy text-navy py-3 rounded-lg font-medium hover:bg-cyan transition text-base"
+          >
+            🔍 搜尋
+          </button>
+          <button
+            onClick={() => navigate('/reports')}
+            className="bg-white border border-navy text-navy py-3 rounded-lg font-medium hover:bg-cyan transition text-base"
+          >
+            📈 報表
+          </button>
         </div>
 
         <div className="border-t border-slate-200 pt-6 space-y-2 text-sm">
