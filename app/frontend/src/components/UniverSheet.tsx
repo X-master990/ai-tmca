@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   LocaleType,
   merge,
@@ -107,6 +107,8 @@ function buildWorkbookData(
 export default function UniverSheet({ categories, recordsByCategory }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const univerRef = useRef<Univer | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [stage, setStage] = useState<string>('init');
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -115,47 +117,70 @@ export default function UniverSheet({ categories, recordsByCategory }: Props) {
       univerRef.current = null;
     }
 
-    const u = new Univer({
-      theme: defaultTheme,
-      locale: LocaleType.ZH_TW,
-      locales: {
-        [LocaleType.ZH_TW]: merge(
-          {},
-          DesignZhTW,
-          UIZhTW,
-          SheetsZhTW,
-          SheetsUIZhTW,
-          SheetsFormulaZhTW,
-        ),
-      },
-    });
+    let u: Univer | null = null;
+    try {
+      setStage('new Univer');
+      u = new Univer({
+        theme: defaultTheme,
+        locale: LocaleType.ZH_TW,
+        locales: {
+          [LocaleType.ZH_TW]: merge(
+            {},
+            DesignZhTW,
+            UIZhTW,
+            SheetsZhTW,
+            SheetsUIZhTW,
+            SheetsFormulaZhTW,
+          ),
+        },
+      });
 
-    u.registerPlugin(UniverRenderEnginePlugin);
-    u.registerPlugin(UniverFormulaEnginePlugin);
-    u.registerPlugin(UniverUIPlugin, {
-      container: containerRef.current,
-      header: true,
-      toolbar: true,
-      footer: true,
-    });
-    u.registerPlugin(UniverSheetsPlugin);
-    u.registerPlugin(UniverSheetsUIPlugin);
-    u.registerPlugin(UniverSheetsFormulaPlugin);
+      setStage('register plugins');
+      u.registerPlugin(UniverRenderEnginePlugin);
+      u.registerPlugin(UniverFormulaEnginePlugin);
+      u.registerPlugin(UniverUIPlugin, {
+        container: containerRef.current,
+        header: true,
+        toolbar: true,
+        footer: true,
+      });
+      u.registerPlugin(UniverSheetsPlugin);
+      u.registerPlugin(UniverSheetsUIPlugin);
+      u.registerPlugin(UniverSheetsFormulaPlugin);
 
-    u.createUnit(
-      UniverInstanceType.UNIVER_SHEET,
-      buildWorkbookData(categories, recordsByCategory),
-    );
-    univerRef.current = u;
+      setStage('build workbook');
+      const wb = buildWorkbookData(categories, recordsByCategory);
+
+      setStage('createUnit');
+      u.createUnit(UniverInstanceType.UNIVER_SHEET, wb);
+      univerRef.current = u;
+      setStage('ready');
+    } catch (e) {
+      const msg = e instanceof Error ? `${e.message}\n${e.stack}` : String(e);
+      setError(`Stage: ${stage}\n${msg}`);
+      console.error('[UniverSheet]', e);
+    }
 
     return () => {
-      u.dispose();
+      try {
+        u?.dispose();
+      } catch {
+        /* ignore */
+      }
       univerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categories, recordsByCategory]);
 
   return (
-    <div ref={containerRef} className="w-full h-full" style={{ minHeight: 600 }} />
+    <div className="w-full h-full relative" style={{ minHeight: 600 }}>
+      {error && (
+        <div className="absolute top-0 left-0 right-0 z-10 bg-red-50 border border-red-300 p-4 m-2 rounded text-xs text-warn font-mono whitespace-pre-wrap max-h-80 overflow-auto">
+          <div className="font-bold mb-1">Univer 載入錯誤：</div>
+          {error}
+        </div>
+      )}
+      <div ref={containerRef} className="w-full h-full" style={{ minHeight: 600 }} />
+    </div>
   );
 }
