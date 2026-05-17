@@ -71,7 +71,7 @@ def search(
     q_rows = db.query(Record).filter(Record.id.in_(merged))
     if category_code:
         q_rows = q_rows.filter(Record.category_code == category_code)
-    rows = q_rows.order_by(desc(Record.issued_date.nulls_last()), desc(Record.id)).all()
+    rows = q_rows.order_by(Record.issued_date.desc().nulls_last(), Record.id.desc()).all()
 
     by_category: dict[str, int] = {}
     for r in rows:
@@ -96,7 +96,7 @@ def agents(
     rows = (
         db.query(Record)
         .filter(Record.applicant_name.ilike(like))
-        .order_by(desc(Record.issued_date.nulls_last()), desc(Record.id))
+        .order_by(Record.issued_date.desc().nulls_last(), Record.id.desc())
         .limit(500)
         .all()
     )
