@@ -83,7 +83,7 @@ class Record(Base):
     # 標的
     qty: Mapped[int | None] = mapped_column(Integer)
     brand: Mapped[str | None] = mapped_column(String(80))
-    serial_no: Mapped[str | None] = mapped_column(String(400))
+    serial_no: Mapped[str | None] = mapped_column(Text)
 
     # 授權期間（續約比對關鍵）
     period_start: Mapped[date | None] = mapped_column(Date)

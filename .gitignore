@@ -26,6 +26,10 @@ build/
 .vscode/
 .idea/
 
+# Real data (contains PII — never commit)
+*.xlsx
+*.xls
+
 # Docker / local data
 pg_data/
 caddy_data/
