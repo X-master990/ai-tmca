@@ -46,43 +46,43 @@ class Record(Base):
 
     # 發票
     invoice_date: Mapped[date | None] = mapped_column(Date)
-    invoice_type: Mapped[str | None] = mapped_column(String(20))
-    invoice_title: Mapped[str | None] = mapped_column(String(200))
-    tax_id: Mapped[str | None] = mapped_column(String(20), index=True)
+    invoice_type: Mapped[str | None] = mapped_column(String(40))
+    invoice_title: Mapped[str | None] = mapped_column(Text)
+    tax_id: Mapped[str | None] = mapped_column(String(40), index=True)
     invoice_no: Mapped[str | None] = mapped_column(String(40), index=True)
     amount: Mapped[int | None] = mapped_column(Integer)
 
     # 承辦
-    source: Mapped[str | None] = mapped_column(String(20))  # 提報：承辦 / 自辦
-    officer: Mapped[str | None] = mapped_column(String(40))
-    action_type: Mapped[str | None] = mapped_column(String(20))  # 辦理項目
+    source: Mapped[str | None] = mapped_column(String(40))  # 提報：承辦 / 自辦
+    officer: Mapped[str | None] = mapped_column(String(80))
+    action_type: Mapped[str | None] = mapped_column(String(40))  # 辦理項目
     apply_date: Mapped[date | None] = mapped_column(Date)
 
     # 申請人
-    applicant_name: Mapped[str | None] = mapped_column(String(80), index=True)
-    applicant_id: Mapped[str | None] = mapped_column(String(20))
-    applicant_mobile: Mapped[str | None] = mapped_column(String(30))
-    applicant_phone: Mapped[str | None] = mapped_column(String(30))
-    applicant_fax: Mapped[str | None] = mapped_column(String(30))
+    applicant_name: Mapped[str | None] = mapped_column(String(120), index=True)
+    applicant_id: Mapped[str | None] = mapped_column(String(40))
+    applicant_mobile: Mapped[str | None] = mapped_column(String(80))
+    applicant_phone: Mapped[str | None] = mapped_column(String(80))
+    applicant_fax: Mapped[str | None] = mapped_column(String(80))
 
     # 持證者（續約比對關鍵）
-    holder_name: Mapped[str | None] = mapped_column(String(120), index=True)
-    holder_type: Mapped[str | None] = mapped_column(String(40))
+    holder_name: Mapped[str | None] = mapped_column(String(200), index=True)
+    holder_type: Mapped[str | None] = mapped_column(String(80))
 
     # 使用地址
-    use_zip: Mapped[str | None] = mapped_column(String(10))
+    use_zip: Mapped[str | None] = mapped_column(String(20))
     use_address: Mapped[str | None] = mapped_column(Text)
 
     # 現場聯絡
-    onsite_name: Mapped[str | None] = mapped_column(String(40))
-    onsite_mobile: Mapped[str | None] = mapped_column(String(30))
-    onsite_phone: Mapped[str | None] = mapped_column(String(30))
-    onsite_ext: Mapped[str | None] = mapped_column(String(20))
-    onsite_fax: Mapped[str | None] = mapped_column(String(30))
+    onsite_name: Mapped[str | None] = mapped_column(String(80))
+    onsite_mobile: Mapped[str | None] = mapped_column(String(80))
+    onsite_phone: Mapped[str | None] = mapped_column(String(80))
+    onsite_ext: Mapped[str | None] = mapped_column(String(40))
+    onsite_fax: Mapped[str | None] = mapped_column(String(80))
 
     # 標的
     qty: Mapped[int | None] = mapped_column(Integer)
-    brand: Mapped[str | None] = mapped_column(String(80))
+    brand: Mapped[str | None] = mapped_column(String(120))
     serial_no: Mapped[str | None] = mapped_column(Text)
 
     # 授權期間（續約比對關鍵）
@@ -90,11 +90,11 @@ class Record(Base):
     period_end: Mapped[date | None] = mapped_column(Date, index=True)
 
     # 寄證地址（含確認欄）
-    mail_type: Mapped[str | None] = mapped_column(String(10))  # 掛號 / 平信
-    mail_zip: Mapped[str | None] = mapped_column(String(10))
+    mail_type: Mapped[str | None] = mapped_column(String(20))  # 掛號 / 平信
+    mail_zip: Mapped[str | None] = mapped_column(String(20))
     mail_address: Mapped[str | None] = mapped_column(Text)
-    mail_recipient: Mapped[str | None] = mapped_column(String(80))
-    mail_phone: Mapped[str | None] = mapped_column(String(30))
+    mail_recipient: Mapped[str | None] = mapped_column(String(120))
+    mail_phone: Mapped[str | None] = mapped_column(String(80))
 
     # 紙本收件確認（不上傳雲端，僅 checkbox）
     paper_application: Mapped[bool] = mapped_column(default=False)  # 已收申請書
