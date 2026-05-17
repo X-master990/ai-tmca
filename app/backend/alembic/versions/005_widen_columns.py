@@ -1,4 +1,4 @@
-"""一次拉寬所有易爆字串欄位，避免匯入打地鼠
+"""一次拉寬所有易爆字串欄位 + 重建 search_vec generated column
 
 Revision ID: 005
 Revises: 004
@@ -15,7 +15,6 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-# 拉寬清單：(欄位, 新型態, 舊型態)
 CHANGES = [
     ("invoice_type", sa.String(40), sa.String(20)),
     ("invoice_title", sa.Text(), sa.String(200)),
@@ -44,11 +43,40 @@ CHANGES = [
 ]
 
 
+SEARCH_VEC_DDL = """
+    ALTER TABLE records ADD COLUMN search_vec tsvector
+    GENERATED ALWAYS AS (
+        to_tsvector('simple',
+            coalesce(cert_no,'') || ' ' ||
+            coalesce(holder_name,'') || ' ' ||
+            coalesce(applicant_name,'') || ' ' ||
+            coalesce(tax_id,'') || ' ' ||
+            coalesce(invoice_no,'') || ' ' ||
+            coalesce(use_address,'') || ' ' ||
+            coalesce(mail_address,'')
+        )
+    ) STORED
+"""
+
+
 def upgrade() -> None:
+    # search_vec 依賴 tax_id 等欄位，必須先 drop
+    op.execute("DROP INDEX IF EXISTS idx_records_search_vec")
+    op.execute("ALTER TABLE records DROP COLUMN IF EXISTS search_vec")
+
     for col, new_type, _ in CHANGES:
         op.alter_column("records", col, type_=new_type)
 
+    op.execute(SEARCH_VEC_DDL)
+    op.execute("CREATE INDEX idx_records_search_vec ON records USING gin(search_vec)")
+
 
 def downgrade() -> None:
+    op.execute("DROP INDEX IF EXISTS idx_records_search_vec")
+    op.execute("ALTER TABLE records DROP COLUMN IF EXISTS search_vec")
+
     for col, _, old_type in CHANGES:
         op.alter_column("records", col, type_=old_type)
+
+    op.execute(SEARCH_VEC_DDL)
+    op.execute("CREATE INDEX idx_records_search_vec ON records USING gin(search_vec)")
