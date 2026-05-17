@@ -21,10 +21,6 @@ class Record(Base):
     __tablename__ = "records"
     __table_args__ = (
         CheckConstraint(
-            "action_type IS NULL OR action_type IN ('新申辦','續約','授權延長','補發','其他')",
-            name="records_action_type_check",
-        ),
-        CheckConstraint(
             "mail_type IS NULL OR mail_type IN ('掛號','平信')",
             name="records_mail_type_check",
         ),
