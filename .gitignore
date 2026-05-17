@@ -30,3 +30,4 @@ build/
 pg_data/
 caddy_data/
 tmca_files/
+app/frontend/tsconfig.tsbuildinfo
