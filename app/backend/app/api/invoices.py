@@ -32,6 +32,9 @@ class PendingInvoiceOut(BaseModel):
     note: str | None              # 備註
 
 
+INVOICE_ISSUED_FIELD = "__invoice_issued__"
+
+
 @router.get("/pending", response_model=list[PendingInvoiceOut])
 def list_pending(
     category_code: str | None = Query(None, description="篩特定類型"),
@@ -39,15 +42,25 @@ def list_pending(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """列出「金額>0 且 invoice_no IS NULL」的待開發票紀錄。"""
+    """列出可開發票的紀錄：
+    - amount > 0
+    - invoice_no 仍為 NULL（核發未手動回填）
+    - 也沒在 audit_log 留下 __invoice_issued__ 痕跡（會計未配過號）
+    """
     if user.role not in ROLES_CAN_ISSUE:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "無權限（僅 admin / accountant）")
 
+    issued_subq = (
+        db.query(AuditLog.record_id)
+        .filter(AuditLog.field_name == INVOICE_ISSUED_FIELD)
+        .subquery()
+    )
     query = (
         db.query(Record)
         .filter(Record.invoice_no.is_(None))
         .filter(Record.amount.is_not(None))
         .filter(Record.amount > 0)
+        .filter(~Record.id.in_(issued_subq))
     )
     if category_code:
         query = query.filter(Record.category_code == category_code)
@@ -107,6 +120,20 @@ def generate(
     if user.role not in ROLES_CAN_ISSUE:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "無開立發票權限（僅 admin / accountant）")
 
+    # 防重複配號：audit_log 已記過 __invoice_issued__ 的 record 不再配
+    already = (
+        db.query(AuditLog.record_id)
+        .filter(AuditLog.field_name == INVOICE_ISSUED_FIELD)
+        .filter(AuditLog.record_id.in_(body.record_ids))
+        .all()
+    )
+    if already:
+        ids = sorted({r[0] for r in already})
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"以下 record 已配過發票號（待核發回填）：{ids}",
+        )
+
     issue_date = body.issue_date or date.today()
     try:
         xlsx_bytes, assigned = generate_invoice_xlsx(
@@ -120,22 +147,13 @@ def generate(
         db.rollback()
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
 
-    # 寫回 record + audit
+    # 只記 audit_log，不寫回 record（核發要手動填）
     for rid, inv_no in assigned:
-        rec = db.query(Record).filter(Record.id == rid).first()
-        if not rec:
-            continue
-        old_no = rec.invoice_no
-        rec.invoice_no = inv_no
-        rec.invoice_date = issue_date
-        rec.invoice_type = body.invoice_type
-        if rec.issuance_status != "綠":
-            rec.issuance_status = "綠"
         db.add(AuditLog(
-            record_id=rec.id,
+            record_id=rid,
             user_id=user.id,
-            field_name="invoice_no",
-            old_value=old_no,
+            field_name=INVOICE_ISSUED_FIELD,
+            old_value=None,
             new_value=inv_no,
         ))
 
