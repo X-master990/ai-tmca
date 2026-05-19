@@ -5,6 +5,7 @@ import { ROLE_LABEL, useAuthStore } from '../store/auth';
 export default function Home() {
   const { user, clear } = useAuthStore();
   const navigate = useNavigate();
+  const canIssueInvoice = user?.role === 'admin' || user?.role === 'accountant';
 
   async function logout() {
     try {
@@ -60,6 +61,14 @@ export default function Home() {
           >
             📈 報表
           </button>
+          {canIssueInvoice && (
+            <button
+              onClick={() => navigate('/invoices')}
+              className="col-span-2 bg-teal text-white py-3 rounded-lg font-medium hover:bg-navy transition text-base"
+            >
+              🧾 開立發票
+            </button>
+          )}
         </div>
 
         <div className="border-t border-slate-200 pt-6 space-y-2 text-sm">

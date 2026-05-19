@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import Home from './pages/Home';
+import Invoices from './pages/Invoices';
 import Login from './pages/Login';
 import Records from './pages/Records';
 import Renewals from './pages/Renewals';
@@ -48,6 +49,14 @@ export default function App() {
         element={
           <ProtectedRoute>
             <Reports />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/invoices"
+        element={
+          <ProtectedRoute>
+            <Invoices />
           </ProtectedRoute>
         }
       />
