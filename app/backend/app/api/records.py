@@ -26,7 +26,7 @@ def list_records(
     rows = (
         db.query(Record)
         .filter(Record.category_code == category_code)
-        .order_by(Record.issued_date.desc().nulls_last(), Record.id.desc())
+        .order_by(Record.issued_date.desc().nulls_first(), Record.id.desc())
         .all()
     )
     return rows
@@ -90,6 +90,63 @@ def _coerce(field: str, raw):
             return raw
         return str(raw).lower() in ("true", "1", "yes", "y", "t")
     return str(raw)
+
+
+@router.post("", response_model=RecordOut, status_code=status.HTTP_201_CREATED)
+def create_record(
+    body: dict,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """新增 record。承辦/admin 才能用；類型必須是該角色負責的。"""
+    category_code = body.pop("category_code", None)
+    if not category_code:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "缺 category_code")
+    if not db.query(Category).filter(Category.code == category_code).first():
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Category {category_code} 不存在")
+
+    permitted = allowed_fields(user.role, category_code)
+    if not permitted:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, f"無權新增 {category_code} 類型")
+
+    rejected = [f for f in body.keys() if f not in permitted]
+    if rejected:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            f"以下欄位無寫入權: {', '.join(rejected)}",
+        )
+
+    payload: dict = {}
+    for field, raw in body.items():
+        # 忽略空字串、None、空白：當作未填，讓 DB default / NULL
+        if raw is None or (isinstance(raw, str) and raw.strip() == ""):
+            continue
+        payload[field] = _coerce(field, raw)
+
+    rec = Record(
+        category_code=category_code,
+        issuance_status="紅",
+        created_by=user.id,
+        updated_by=user.id,
+        **payload,
+    )
+    # 如果有填發票號 → 直接綠燈
+    if payload.get("invoice_no"):
+        rec.issuance_status = "綠"
+
+    db.add(rec)
+    db.commit()
+    db.refresh(rec)
+
+    db.add(AuditLog(
+        record_id=rec.id,
+        user_id=user.id,
+        field_name="__created__",
+        old_value=None,
+        new_value=category_code,
+    ))
+    db.commit()
+    return rec
 
 
 @router.patch("/{record_id}", response_model=RecordOut)
