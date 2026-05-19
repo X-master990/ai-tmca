@@ -1,6 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { COLUMNS, Category, RecordRow } from '../api/records';
 import { PermissionsOut, patchRecord } from '../api/permissions';
+import { downloadBlob, generateInvoices } from '../api/invoices';
+import { useAuthStore } from '../store/auth';
 import StatusDot from './StatusDot';
 
 const STATUS_FIELDS = new Set(['renewal_status', 'issuance_status']);
@@ -40,6 +42,15 @@ function EditableCell({
   const [value, setValue] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  // 外部來源（undo / row 重新整理）改了底層資料時，把顯示值同步進來
+  useEffect(() => {
+    if (!editing && value !== initial) {
+      setValue(initial);
+      setErr(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initial]);
 
   async function commit() {
     setEditing(false);
@@ -106,8 +117,24 @@ function EditableCell({
 }
 
 export default function RecordsTable({ categories, recordsByCategory, permissions }: Props) {
-  const [activeCode, setActiveCode] = useState<string>(categories[0]?.code ?? '');
+  const { user } = useAuthStore();
+  const canIssueInvoice = user?.role === 'admin' || user?.role === 'accountant';
+
+  // 預設停在「該角色可編輯」的第一個類型；找不到則回到第一個
+  const defaultCode = useMemo(() => {
+    if (permissions) {
+      const editable = categories.find(
+        (c) => (permissions.editable_fields_by_category[c.code]?.length ?? 0) > 0,
+      );
+      if (editable) return editable.code;
+    }
+    return categories[0]?.code ?? '';
+  }, [categories, permissions]);
+  const [activeCode, setActiveCode] = useState<string>(defaultCode);
   const [filter, setFilter] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [issuing, setIssuing] = useState(false);
+  const [issueMsg, setIssueMsg] = useState<string | null>(null);
   const [, forceRefresh] = useState(0);
 
   const fullList = useMemo(
@@ -138,6 +165,79 @@ export default function RecordsTable({ categories, recordsByCategory, permission
     // 把回傳的 row 寫回 recordsByCategory（mutate in place）
     Object.assign(row, updated);
     forceRefresh((n) => n + 1);
+  }
+
+  // 可開立發票：金額 > 0 且尚未有發票號
+  const issuableSelected = useMemo(
+    () =>
+      activeRecords.filter(
+        (r) => selectedIds.has(r.id) && !r.invoice_no && (r.amount ?? 0) > 0,
+      ),
+    [activeRecords, selectedIds],
+  );
+  const blockedSelected = useMemo(
+    () =>
+      activeRecords.filter(
+        (r) => selectedIds.has(r.id) && (r.invoice_no || (r.amount ?? 0) <= 0),
+      ),
+    [activeRecords, selectedIds],
+  );
+
+  function toggleOne(id: number) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function toggleAllVisible() {
+    setSelectedIds((prev) => {
+      const allSel = activeRecords.every((r) => prev.has(r.id));
+      const next = new Set(prev);
+      if (allSel) activeRecords.forEach((r) => next.delete(r.id));
+      else activeRecords.forEach((r) => next.add(r.id));
+      return next;
+    });
+  }
+
+  async function handleIssueInvoice() {
+    if (issuableSelected.length === 0) return;
+    if (!window.confirm(
+      `將為 ${issuableSelected.length} 筆紀錄配發發票號碼並下載 Excel。\n此動作會直接寫入發票號（無法退回），確定？`,
+    )) return;
+    setIssuing(true);
+    setIssueMsg(null);
+    try {
+      const result = await generateInvoices({
+        record_ids: issuableSelected.map((r) => r.id),
+        invoice_type: '二聯式',
+      });
+      downloadBlob(result.blob, result.filename);
+      setIssueMsg(`✅ 已開 ${result.count} 張：${result.firstNo} ~ ${result.lastNo}`);
+      // 重新拉這些 record 的狀態太麻煩，直接 mutate：清掉勾選並重抓
+      const issuedIds = new Set(issuableSelected.map((r) => r.id));
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        issuedIds.forEach((id) => next.delete(id));
+        return next;
+      });
+      // 觸發整頁刷新 — 簡單做法：reload
+      // 不 reload，改 mutate 行：給每筆塞一個假發票號做樂觀更新（後端會在下次刷新時帶真實號）
+      // 真實號其實已經回來在 result，但這裡沒做配對；先標記成「綠 / 已開」讓 UI 即時反映
+      activeRecords.forEach((r) => {
+        if (issuedIds.has(r.id)) {
+          r.issuance_status = '綠';
+          if (!r.invoice_no) r.invoice_no = '(剛開立)'; // 提示用，重新整理後會帶回真實號
+          r.invoice_date = new Date().toISOString().slice(0, 10);
+        }
+      });
+      forceRefresh((n) => n + 1);
+    } catch (e) {
+      setIssueMsg(`❌ ${e instanceof Error ? e.message : '開立失敗'}`);
+    } finally {
+      setIssuing(false);
+    }
   }
 
   return (
@@ -182,13 +282,63 @@ export default function RecordsTable({ categories, recordsByCategory, permission
             <span className="text-ok">✏️ 可編 {editableFields.size} 欄</span>
           )}
         </div>
+        {canIssueInvoice && (
+          <>
+            <div className="text-xs text-soft">
+              已選 <span className="font-mono text-ink">{selectedIds.size}</span>
+              {selectedIds.size > 0 && (
+                <span className="ml-1">
+                  · 可開 <span className="font-mono text-ok">{issuableSelected.length}</span>
+                  {blockedSelected.length > 0 && (
+                    <span className="ml-1 text-warn">
+                      · 跳過 {blockedSelected.length}（已有號或金額≤0）
+                    </span>
+                  )}
+                </span>
+              )}
+            </div>
+            <button
+              disabled={issuing || issuableSelected.length === 0}
+              onClick={handleIssueInvoice}
+              className="px-3 py-1 bg-teal text-white text-xs rounded hover:bg-navy disabled:bg-slate-300 disabled:cursor-not-allowed transition"
+              title={
+                issuableSelected.length === 0
+                  ? '請勾選至少一筆「未開發票且金額 > 0」的紀錄'
+                  : ''
+              }
+            >
+              {issuing ? '⏳ 開立中…' : `🧾 開立發票 (${issuableSelected.length})`}
+            </button>
+          </>
+        )}
       </div>
+      {issueMsg && (
+        <div className="px-4 py-1.5 text-xs bg-cyan/30 border-b border-slate-200">
+          {issueMsg}
+        </div>
+      )}
 
       {/* Table */}
       <div className="flex-1 overflow-auto bg-white">
         <table className="text-xs border-collapse" style={{ tableLayout: 'fixed' }}>
           <thead className="sticky top-0 z-10 bg-cyan">
             <tr>
+              {canIssueInvoice && (
+                <th
+                  className="px-2 py-2 text-center font-semibold text-navy border border-slate-300"
+                  style={{ width: 36, minWidth: 36 }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={
+                      activeRecords.length > 0 &&
+                      activeRecords.every((r) => selectedIds.has(r.id))
+                    }
+                    onChange={toggleAllVisible}
+                    title="全選/全消"
+                  />
+                </th>
+              )}
               {COLUMNS.map((c) => (
                 <th
                   key={c.key as string}
@@ -209,6 +359,32 @@ export default function RecordsTable({ categories, recordsByCategory, permission
                 key={r.id}
                 className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}
               >
+                {canIssueInvoice && (() => {
+                  const issuable = !r.invoice_no && (r.amount ?? 0) > 0;
+                  const reason = r.invoice_no
+                    ? `已有發票號 ${r.invoice_no}（不會重複開立）`
+                    : (r.amount ?? 0) <= 0
+                      ? '金額 ≤ 0，不會開立'
+                      : '勾選開立';
+                  return (
+                    <td
+                      className="px-2 py-1 border border-slate-200 text-center"
+                      style={{
+                        width: 36,
+                        maxWidth: 36,
+                        background: issuable ? undefined : '#f1f5f9',
+                      }}
+                      title={reason}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(r.id)}
+                        onChange={() => toggleOne(r.id)}
+                        style={{ opacity: issuable ? 1 : 0.45 }}
+                      />
+                    </td>
+                  );
+                })()}
                 {COLUMNS.map((c) => {
                   const field = c.key as string;
                   // id 欄位永遠唯讀
@@ -251,7 +427,10 @@ export default function RecordsTable({ categories, recordsByCategory, permission
             ))}
             {activeRecords.length === 0 && (
               <tr>
-                <td colSpan={COLUMNS.length} className="px-4 py-8 text-center text-soft">
+                <td
+                  colSpan={COLUMNS.length + (canIssueInvoice ? 1 : 0)}
+                  className="px-4 py-8 text-center text-soft"
+                >
                   無資料
                 </td>
               </tr>
