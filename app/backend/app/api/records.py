@@ -1,5 +1,5 @@
 """Records API"""
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
@@ -239,6 +239,110 @@ def create_record(
     ))
     db.commit()
     return rec
+
+
+UNDO_WINDOW_MINUTES = 30
+SYSTEM_AUDIT_FIELDS = ("__created__", "__invoice_issued__")
+# issuance_status 是 PATCH invoice_no 的副作用，不算「使用者直接編輯」；
+# 找 undo 目標時跳過它，避免找到副作用而非主要動作
+SIDE_EFFECT_FIELDS = ("issuance_status",)
+
+
+class UndoOut(BaseModel):
+    record_id: int
+    field: str                      # 主要還原的欄位（顯示用）
+    previous_value: str | None      # 還原前該主欄位的值
+    restored_value: str | None      # 還原後該主欄位的值
+    also_reverted: list[str] = []   # 一同還原的副作用欄位（譬如 issuance_status）
+    record: RecordOut
+
+
+@router.post("/undo", response_model=UndoOut)
+def undo_last_edit(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """還原本人 UNDO_WINDOW_MINUTES 分鐘內最近一筆 record 編輯。
+    同一 transaction 內寫進去的多筆 audit_log（共享 changed_at）會一起回滾，
+    避免「主動作」與「副作用」拆開造成資料不一致。"""
+    threshold = datetime.now() - timedelta(minutes=UNDO_WINDOW_MINUTES)
+
+    primary = (
+        db.query(AuditLog)
+        .filter(AuditLog.user_id == user.id)
+        .filter(AuditLog.changed_at >= threshold)
+        .filter(~AuditLog.field_name.in_(SYSTEM_AUDIT_FIELDS + SIDE_EFFECT_FIELDS))
+        .filter(~AuditLog.field_name.like("__undone__:%"))
+        .order_by(AuditLog.id.desc())
+        .first()
+    )
+    if not primary:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            f"{UNDO_WINDOW_MINUTES} 分鐘內沒有可還原的修改",
+        )
+
+    rec = db.query(Record).filter(Record.id == primary.record_id).first()
+    if not rec:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "對應 record 已不存在")
+
+    permitted = allowed_fields(user.role, rec.category_code)
+    if user.role != "admin" and primary.field_name not in permitted:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            f"目前角色 {user.role} 已無權還原 {primary.field_name}",
+        )
+
+    # 同 transaction 內的同伴：相同 (user_id, record_id)，changed_at 在 ±1 秒內
+    # （ORM 的 datetime.utcnow default 是 row-level，多筆會差幾微秒，不能用嚴格相等）
+    window = timedelta(seconds=1)
+    group = (
+        db.query(AuditLog)
+        .filter(AuditLog.user_id == user.id)
+        .filter(AuditLog.record_id == primary.record_id)
+        .filter(AuditLog.changed_at >= primary.changed_at - window)
+        .filter(AuditLog.changed_at <= primary.changed_at + window)
+        .filter(~AuditLog.field_name.in_(SYSTEM_AUDIT_FIELDS))
+        .filter(~AuditLog.field_name.like("__undone__:%"))
+        .all()
+    )
+
+    previous_main = getattr(rec, primary.field_name)
+    restored_main = (
+        _coerce(primary.field_name, primary.old_value)
+        if primary.old_value not in (None, "") else None
+    )
+    also: list[str] = []
+    for entry in group:
+        restored_val = (
+            _coerce(entry.field_name, entry.old_value)
+            if entry.old_value not in (None, "") else None
+        )
+        setattr(rec, entry.field_name, restored_val)
+        if entry.id != primary.id:
+            also.append(entry.field_name)
+        db.delete(entry)
+
+    rec.updated_by = user.id
+    rec.updated_at = datetime.utcnow()
+    db.add(AuditLog(
+        record_id=rec.id,
+        user_id=user.id,
+        field_name=f"__undone__:{primary.field_name}",
+        old_value=str(previous_main) if previous_main is not None else None,
+        new_value=str(restored_main) if restored_main is not None else None,
+    ))
+    db.commit()
+    db.refresh(rec)
+
+    return UndoOut(
+        record_id=rec.id,
+        field=primary.field_name,
+        previous_value=str(previous_main) if previous_main is not None else None,
+        restored_value=str(restored_main) if restored_main is not None else None,
+        also_reverted=also,
+        record=RecordOut.model_validate(rec, from_attributes=True),
+    )
 
 
 @router.patch("/{record_id}", response_model=RecordOut)

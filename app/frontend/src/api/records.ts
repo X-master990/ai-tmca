@@ -144,3 +144,15 @@ export const lookupHolder = (q: string, limit = 5) =>
   api<HolderLookup[]>(
     `/api/records/lookup?q=${encodeURIComponent(q)}&limit=${limit}`,
   );
+
+export interface UndoResult {
+  record_id: number;
+  field: string;
+  previous_value: string | null;
+  restored_value: string | null;
+  also_reverted: string[];
+  record: RecordRow;
+}
+
+export const undoLastEdit = () =>
+  api<UndoResult>('/api/records/undo', { method: 'POST' });
