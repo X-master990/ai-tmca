@@ -3,6 +3,7 @@ from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -30,6 +31,97 @@ def list_records(
         .all()
     )
     return rows
+
+
+class HolderLookupOut(BaseModel):
+    """承辦新增案件時的「持證者自動帶入」候選 — 過往同 holder/tax_id 紀錄的最近一筆，
+    回傳「下次申請可重用」的聯絡 / 地址 / 抬頭欄位，個案專屬欄位（金額、日期、辦理項目、備註）不帶。"""
+    id: int                   # 來源 record id（除錯用）
+    category_code: str        # 上次屬於哪個類型
+    last_apply_date: str | None  # 給前端顯示「上次申辦 = ...」做提示
+    holder_name: str | None
+    holder_type: str | None
+    tax_id: str | None
+    invoice_title: str | None
+    invoice_type: str | None
+    use_zip: str | None
+    use_address: str | None
+    mail_zip: str | None
+    mail_address: str | None
+    mail_recipient: str | None
+    mail_phone: str | None
+    applicant_name: str | None
+    applicant_id: str | None
+    applicant_mobile: str | None
+    applicant_phone: str | None
+    applicant_fax: str | None
+    onsite_name: str | None
+    onsite_mobile: str | None
+    onsite_phone: str | None
+    onsite_ext: str | None
+    onsite_fax: str | None
+
+
+@router.get("/lookup", response_model=list[HolderLookupOut])
+def lookup_holder(
+    q: str = Query(..., min_length=1, description="持證者名稱或統一編號片段"),
+    limit: int = Query(5, ge=1, le=20),
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """承辦在「新增案件」時，打持證者名稱即時搜尋過往紀錄，回傳可重用欄位的候選清單。
+    去重邏輯：同 (holder_name, tax_id) 只保留最新（id 最大）的那筆。"""
+    s = q.strip()
+    if not s:
+        return []
+    like = f"%{s}%"
+    rows = (
+        db.query(Record)
+        .filter(or_(
+            Record.holder_name.ilike(like),
+            Record.invoice_title.ilike(like),
+            Record.tax_id.ilike(like),
+        ))
+        .order_by(Record.id.desc())
+        .limit(200)  # 多撈一點再去重
+        .all()
+    )
+    seen: set[tuple[str, str]] = set()
+    out: list[HolderLookupOut] = []
+    for r in rows:
+        key = ((r.holder_name or "").strip(), (r.tax_id or "").strip())
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(HolderLookupOut(
+            id=r.id,
+            category_code=r.category_code,
+            last_apply_date=r.apply_date.isoformat() if r.apply_date else None,
+            holder_name=r.holder_name,
+            holder_type=r.holder_type,
+            tax_id=r.tax_id,
+            invoice_title=r.invoice_title,
+            invoice_type=r.invoice_type,
+            use_zip=r.use_zip,
+            use_address=r.use_address,
+            mail_zip=r.mail_zip,
+            mail_address=r.mail_address,
+            mail_recipient=r.mail_recipient,
+            mail_phone=r.mail_phone,
+            applicant_name=r.applicant_name,
+            applicant_id=r.applicant_id,
+            applicant_mobile=r.applicant_mobile,
+            applicant_phone=r.applicant_phone,
+            applicant_fax=r.applicant_fax,
+            onsite_name=r.onsite_name,
+            onsite_mobile=r.onsite_mobile,
+            onsite_phone=r.onsite_phone,
+            onsite_ext=r.onsite_ext,
+            onsite_fax=r.onsite_fax,
+        ))
+        if len(out) >= limit:
+            break
+    return out
 
 
 class PermissionsOut(BaseModel):

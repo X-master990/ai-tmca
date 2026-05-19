@@ -106,3 +106,41 @@ export const COLUMNS: { key: keyof RecordRow; label: string; width: number }[] =
 export const fetchCategories = () => api<Category[]>('/api/categories');
 export const fetchRecords = (code: string) =>
   api<RecordRow[]>(`/api/records?category_code=${encodeURIComponent(code)}`);
+
+export const createRecord = (payload: Record<string, unknown>) =>
+  api<RecordRow>('/api/records', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+
+export interface HolderLookup {
+  id: number;
+  category_code: string;
+  last_apply_date: string | null;
+  holder_name: string | null;
+  holder_type: string | null;
+  tax_id: string | null;
+  invoice_title: string | null;
+  invoice_type: string | null;
+  use_zip: string | null;
+  use_address: string | null;
+  mail_zip: string | null;
+  mail_address: string | null;
+  mail_recipient: string | null;
+  mail_phone: string | null;
+  applicant_name: string | null;
+  applicant_id: string | null;
+  applicant_mobile: string | null;
+  applicant_phone: string | null;
+  applicant_fax: string | null;
+  onsite_name: string | null;
+  onsite_mobile: string | null;
+  onsite_phone: string | null;
+  onsite_ext: string | null;
+  onsite_fax: string | null;
+}
+
+export const lookupHolder = (q: string, limit = 5) =>
+  api<HolderLookup[]>(
+    `/api/records/lookup?q=${encodeURIComponent(q)}&limit=${limit}`,
+  );
