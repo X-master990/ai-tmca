@@ -31,5 +31,5 @@ def allowed_fields(role: str, category_code: str) -> set[str]:
     if role == "accountant":
         return INVOICE_FIELDS
     if role == "issuer":
-        return {"invoice_no"}
+        return ALL_EDITABLE_FIELDS
     return set()  # viewer / 其他
