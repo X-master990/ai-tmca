@@ -24,9 +24,12 @@ function MiniRow({ r }: { r: RecordRow }) {
   );
 }
 
+const ALLOWED_ROLES = new Set(['officer_a', 'officer_b', 'admin']);
+
 export default function Renewals() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
+  const allowed = !!user && ALLOWED_ROLES.has(user.role);
   const [month, setMonth] = useState<number>(new Date().getMonth() + 1);
   const [year, setYear] = useState<number>(new Date().getFullYear());
   const [data, setData] = useState<RenewalListResponse | null>(null);
@@ -48,8 +51,9 @@ export default function Renewals() {
   }
 
   useEffect(() => {
+    if (!allowed) return;
     load(month, year);
-  }, [month, year]);
+  }, [month, year, allowed]);
 
   async function doRecompute() {
     setRecomputeMsg('計算中…');
@@ -62,6 +66,18 @@ export default function Renewals() {
     } catch (e) {
       setRecomputeMsg(e instanceof Error ? `❌ ${e.message}` : '失敗');
     }
+  }
+
+  if (!allowed) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-10">
+        <div className="text-warn font-medium">⚠ 續約管理僅供承辦 / admin 使用</div>
+        <div className="text-soft text-sm">目前角色：{user?.role ?? '—'}</div>
+        <button onClick={() => navigate('/')} className="px-4 py-2 bg-navy text-white rounded-lg hover:bg-teal">
+          回首頁
+        </button>
+      </div>
+    );
   }
 
   return (

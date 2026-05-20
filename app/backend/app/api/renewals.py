@@ -29,7 +29,7 @@ def list_renewals(
     year: int | None = Query(None, description="預設為今年；指定年份用民國/西元都行（>1911 視為西元）"),
     category_code: str | None = Query(None),
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_role("officer_a", "officer_b", "admin")),
 ):
     """依月份回該月到期 records，分為「未續約」與「已續約」兩組。"""
     if year is None:

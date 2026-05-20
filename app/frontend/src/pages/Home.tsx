@@ -6,6 +6,8 @@ export default function Home() {
   const { user, clear } = useAuthStore();
   const navigate = useNavigate();
   const canIssueInvoice = user?.role === 'admin' || user?.role === 'accountant';
+  const canSeeRenewals =
+    user?.role === 'admin' || user?.role === 'officer_a' || user?.role === 'officer_b';
 
   async function logout() {
     try {
@@ -43,12 +45,14 @@ export default function Home() {
           >
             📊 進入總表
           </button>
-          <button
-            onClick={() => navigate('/renewals')}
-            className="bg-white border border-navy text-navy py-3 rounded-lg font-medium hover:bg-cyan transition text-base"
-          >
-            🔁 續約管理
-          </button>
+          {canSeeRenewals && (
+            <button
+              onClick={() => navigate('/renewals')}
+              className="bg-white border border-navy text-navy py-3 rounded-lg font-medium hover:bg-cyan transition text-base"
+            >
+              🔁 續約管理
+            </button>
+          )}
           <button
             onClick={() => navigate('/search')}
             className="bg-white border border-navy text-navy py-3 rounded-lg font-medium hover:bg-cyan transition text-base"
