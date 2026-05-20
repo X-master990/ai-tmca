@@ -122,15 +122,19 @@ function RenewalCard({ renewal }: { renewal: ReportSummary['renewal'] }) {
   );
 }
 
+const ALLOWED_ROLES = new Set(['accountant', 'admin']);
+
 export default function Reports() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
+  const allowed = !!user && ALLOWED_ROLES.has(user.role);
   const [year, setYear] = useState(new Date().getFullYear());
   const [data, setData] = useState<ReportSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!allowed) return;
     let alive = true;
     setLoading(true);
     fetchReportSummary(year)
@@ -138,7 +142,19 @@ export default function Reports() {
       .catch((e) => { if (alive) setError(e instanceof Error ? e.message : '載入失敗'); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [year]);
+  }, [year, allowed]);
+
+  if (!allowed) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-10">
+        <div className="text-warn font-medium">⚠ 報表僅供會計 / admin 使用</div>
+        <div className="text-soft text-sm">目前角色：{user?.role ?? '—'}</div>
+        <button onClick={() => navigate('/')} className="px-4 py-2 bg-navy text-white rounded-lg hover:bg-teal">
+          回首頁
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col">

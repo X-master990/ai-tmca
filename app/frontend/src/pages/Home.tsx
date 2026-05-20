@@ -8,6 +8,7 @@ export default function Home() {
   const canIssueInvoice = user?.role === 'admin' || user?.role === 'accountant';
   const canSeeRenewals =
     user?.role === 'admin' || user?.role === 'officer_a' || user?.role === 'officer_b';
+  const canSeeReports = user?.role === 'admin' || user?.role === 'accountant';
 
   async function logout() {
     try {
@@ -59,12 +60,14 @@ export default function Home() {
           >
             🔍 搜尋
           </button>
-          <button
-            onClick={() => navigate('/reports')}
-            className="bg-white border border-navy text-navy py-3 rounded-lg font-medium hover:bg-cyan transition text-base"
-          >
-            📈 報表
-          </button>
+          {canSeeReports && (
+            <button
+              onClick={() => navigate('/reports')}
+              className="bg-white border border-navy text-navy py-3 rounded-lg font-medium hover:bg-cyan transition text-base"
+            >
+              📈 報表
+            </button>
+          )}
           {canIssueInvoice && (
             <button
               onClick={() => navigate('/invoices')}

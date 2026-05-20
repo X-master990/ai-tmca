@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import require_role
 from app.database import get_db
 from app.models import Category, Record, User
 
@@ -16,9 +16,9 @@ router = APIRouter(prefix="/api/reports", tags=["reports"])
 def summary(
     year: int | None = Query(None, description="預設今年。<1911 視為民國年"),
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_role("accountant", "admin")),
 ):
-    """報表 dashboard。"""
+    """報表 dashboard。僅會計 / admin 可看。"""
     if year is None:
         year = datetime.utcnow().year
     elif year < 1911:
