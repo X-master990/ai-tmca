@@ -11,6 +11,7 @@ from app.core.permissions import allowed_fields, can_delete
 from app.database import get_db
 from app.models import AuditLog, Category, Record, User
 from app.schemas.record import RecordOut
+from app.services.customer_no import assign_for_record
 
 router = APIRouter(prefix="/api/records", tags=["records"])
 
@@ -257,6 +258,9 @@ def create_record(
     # 如果有填發票號 → 直接綠燈
     if payload.get("invoice_no"):
         rec.issuance_status = "綠"
+
+    # 指派客戶編號（同店家沿用既有號，否則該前綴下一個流水）
+    assign_for_record(db, rec)
 
     db.add(rec)
     db.commit()

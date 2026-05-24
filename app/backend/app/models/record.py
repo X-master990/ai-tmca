@@ -40,6 +40,7 @@ class Record(Base):
     )
 
     # 識別
+    customer_no: Mapped[str | None] = mapped_column(String(7), index=True)  # 7碼客戶編號（1碼類別+6碼流水），一店家一號
     cert_no: Mapped[str | None] = mapped_column(String(40), index=True)
     issued_date: Mapped[date | None] = mapped_column(Date)
     note: Mapped[str | None] = mapped_column(Text)

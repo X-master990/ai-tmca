@@ -10,6 +10,7 @@ from app.core.permissions import can_delete
 from app.database import get_db
 from app.models import AuditLog, Record, User
 from app.schemas.record import RecordOut
+from app.services.customer_no import assign_for_record
 from app.services.renewals import compute_renewal_status
 
 router = APIRouter(prefix="/api/renewals", tags=["renewals"])
@@ -122,6 +123,8 @@ def generate_renewal(
         updated_by=user.id,
         **{f: getattr(old, f) for f in _RENEWAL_CARRY_FIELDS},
     )
+    # 續約沿用同店家的客戶編號（找不到才配新號）
+    new.customer_no = old.customer_no or assign_for_record(db, new)
     db.add(new)
     db.commit()
     db.refresh(new)

@@ -12,6 +12,7 @@ export interface Category {
 export interface RecordRow {
   id: number;
   category_code: string;
+  customer_no: string | null;
   cert_no: string | null;
   issued_date: string | null;
   note: string | null;
@@ -70,6 +71,7 @@ export interface Column {
 
 export const COLUMNS: Column[] = [
   { key: 'id', label: 'ID', width: 60 },
+  { key: 'customer_no', label: '客戶編號', width: 90 },
   { key: 'cert_no', label: '證書編號', width: 120 },
   { key: 'issued_date', label: '發證日', width: 100 },
   { key: 'invoice_date', label: '發票日期', width: 100 },
@@ -116,6 +118,7 @@ export const COLUMNS: Column[] = [
 // period_start/period_end 兩個日期欄呈現。共同的前 10 欄與尾端寄證/狀態欄抽成共用片段。
 const HEAD: Column[] = [
   { key: 'id', label: 'NO.', width: 60 },
+  { key: 'customer_no', label: '客戶編號', width: 90 },
   { key: 'issued_date', label: '發證日', width: 100 },
   { key: 'note', label: '註記', width: 160 },
   { key: 'cert_no', label: '證書編號', width: 120 },

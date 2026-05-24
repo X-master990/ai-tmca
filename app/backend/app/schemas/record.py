@@ -10,6 +10,7 @@ class RecordOut(BaseModel):
     id: int
     category_code: str
 
+    customer_no: str | None
     cert_no: str | None
     issued_date: date | None
     note: str | None
