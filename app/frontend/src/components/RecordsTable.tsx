@@ -528,15 +528,15 @@ export default function RecordsTable({
                 })()}
                 {columns.map((c) => {
                   const field = c.key;
-                  // id 欄位永遠唯讀
-                  if (field === 'id') {
+                  // id / 客戶編號 系統欄位永遠唯讀，等寬字顯示
+                  if (field === 'id' || field === 'customer_no') {
                     return (
                       <td
                         key={field}
-                        className="px-2 py-1 border border-slate-200 truncate text-soft font-mono"
+                        className="px-2 py-1 border border-slate-200 truncate text-ink font-mono"
                         style={{ width: c.width, maxWidth: c.width }}
                       >
-                        {r.id}
+                        {field === 'id' ? r.id : r.customer_no ?? ''}
                       </td>
                     );
                   }

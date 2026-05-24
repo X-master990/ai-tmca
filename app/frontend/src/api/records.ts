@@ -70,8 +70,7 @@ export interface Column {
 }
 
 export const COLUMNS: Column[] = [
-  { key: 'id', label: 'ID', width: 60 },
-  { key: 'customer_no', label: '客戶編號', width: 90 },
+  { key: 'customer_no', label: '客戶編號', width: 100 },
   { key: 'cert_no', label: '證書編號', width: 120 },
   { key: 'issued_date', label: '發證日', width: 100 },
   { key: 'invoice_date', label: '發票日期', width: 100 },
@@ -117,8 +116,7 @@ export const COLUMNS: Column[] = [
 // extra.* 取 JSONB 子欄位；授權期間 6 欄（起年/月/日、迄年/月/日）以 DB 實際儲存的
 // period_start/period_end 兩個日期欄呈現。共同的前 10 欄與尾端寄證/狀態欄抽成共用片段。
 const HEAD: Column[] = [
-  { key: 'id', label: 'NO.', width: 60 },
-  { key: 'customer_no', label: '客戶編號', width: 90 },
+  { key: 'customer_no', label: '客戶編號', width: 100 },
   { key: 'issued_date', label: '發證日', width: 100 },
   { key: 'note', label: '註記', width: 160 },
   { key: 'cert_no', label: '證書編號', width: 120 },
