@@ -113,3 +113,7 @@ class Record(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_by: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"))
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # 軟刪除：deleted_at 有值 = 已刪除（列表預設過濾掉，資料保留可還原 / 稽核）
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+    deleted_by: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"))

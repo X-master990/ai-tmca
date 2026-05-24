@@ -76,3 +76,15 @@ def allowed_fields(role: str, category_code: str) -> set[str]:
     if role == "issuer":
         return ALL_EDITABLE_FIELDS | extra
     return set()  # viewer / 其他
+
+
+def can_delete(role: str, category_code: str) -> bool:
+    """誰能（軟）刪除該類型的紀錄：admin 全部；承辦限自己負責的類型。
+    會計 / 核發 / viewer 不可刪。"""
+    if role == "admin":
+        return True
+    if role == "officer_a":
+        return category_code == "SINGLE_EVENT"
+    if role == "officer_b":
+        return category_code != "SINGLE_EVENT"
+    return False

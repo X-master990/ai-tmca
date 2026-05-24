@@ -7,7 +7,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
-from app.core.permissions import allowed_fields
+from app.core.permissions import allowed_fields, can_delete
 from app.database import get_db
 from app.models import AuditLog, Category, Record, User
 from app.schemas.record import RecordOut
@@ -27,6 +27,7 @@ def list_records(
     rows = (
         db.query(Record)
         .filter(Record.category_code == category_code)
+        .filter(Record.deleted_at.is_(None))  # 軟刪除的不列出
         .order_by(Record.issued_date.desc().nulls_first(), Record.id.desc())
         .all()
     )
@@ -82,6 +83,7 @@ def lookup_holder(
             Record.invoice_title.ilike(like),
             Record.tax_id.ilike(like),
         ))
+        .filter(Record.deleted_at.is_(None))
         .order_by(Record.id.desc())
         .limit(200)  # 多撈一點再去重
         .all()
@@ -127,6 +129,7 @@ def lookup_holder(
 class PermissionsOut(BaseModel):
     role: str
     editable_fields_by_category: dict[str, list[str]]
+    deletable_categories: list[str]
 
 
 @router.get("/permissions", response_model=PermissionsOut)
@@ -134,13 +137,14 @@ def get_permissions(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """回該 user 在每個 category 可編輯的欄位清單，供前端 readonly 判定。"""
+    """回該 user 在每個 category 可編輯的欄位清單 + 可刪除的類型，供前端 UI 判定。"""
     cats = db.query(Category).all()
     return PermissionsOut(
         role=user.role,
         editable_fields_by_category={
             c.code: sorted(allowed_fields(user.role, c.code)) for c in cats
         },
+        deletable_categories=[c.code for c in cats if can_delete(user.role, c.code)],
     )
 
 
@@ -264,7 +268,7 @@ def create_record(
 
 
 UNDO_WINDOW_MINUTES = 30
-SYSTEM_AUDIT_FIELDS = ("__created__", "__invoice_issued__")
+SYSTEM_AUDIT_FIELDS = ("__created__", "__invoice_issued__", "__deleted__", "__restored__")
 # issuance_status 是 PATCH invoice_no 的副作用，不算「使用者直接編輯」；
 # 找 undo 目標時跳過它，避免找到副作用而非主要動作
 SIDE_EFFECT_FIELDS = ("issuance_status",)
@@ -375,7 +379,7 @@ def patch_record(
     user: User = Depends(get_current_user),
 ):
     rec = db.query(Record).filter(Record.id == record_id).first()
-    if not rec:
+    if not rec or rec.deleted_at is not None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到 record")
 
     permitted = allowed_fields(user.role, rec.category_code)
@@ -423,3 +427,83 @@ def patch_record(
     db.commit()
     db.refresh(rec)
     return rec
+
+
+class DeleteResult(BaseModel):
+    id: int
+    deleted: bool
+
+
+@router.delete("/{record_id}", response_model=DeleteResult)
+def delete_record(
+    record_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """軟刪除：標記 deleted_at，資料保留可還原。承辦限自己負責的類型，admin 全部。"""
+    rec = db.query(Record).filter(Record.id == record_id).first()
+    if not rec:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到 record")
+    if not can_delete(user.role, rec.category_code):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "無刪除權限")
+    if rec.deleted_at is not None:
+        return DeleteResult(id=rec.id, deleted=True)  # 已是刪除狀態，idempotent
+
+    rec.deleted_at = datetime.utcnow()
+    rec.deleted_by = user.id
+    db.add(AuditLog(
+        record_id=rec.id,
+        user_id=user.id,
+        field_name="__deleted__",
+        old_value=None,
+        new_value=rec.category_code,
+    ))
+    db.commit()
+    return DeleteResult(id=rec.id, deleted=True)
+
+
+@router.post("/{record_id}/restore", response_model=RecordOut)
+def restore_record(
+    record_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """還原軟刪除的紀錄。權限同刪除。"""
+    rec = db.query(Record).filter(Record.id == record_id).first()
+    if not rec:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到 record")
+    if not can_delete(user.role, rec.category_code):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "無還原權限")
+    if rec.deleted_at is None:
+        return rec  # 本來就沒刪，idempotent
+
+    rec.deleted_at = None
+    rec.deleted_by = None
+    db.add(AuditLog(
+        record_id=rec.id,
+        user_id=user.id,
+        field_name="__restored__",
+        old_value=None,
+        new_value=rec.category_code,
+    ))
+    db.commit()
+    db.refresh(rec)
+    return rec
+
+
+@router.get("/deleted", response_model=list[RecordOut])
+def list_deleted(
+    category_code: str = Query(..., description="category code"),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """列出該類型已軟刪除的紀錄，供還原。權限同刪除。"""
+    if not can_delete(user.role, category_code):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "無檢視已刪除權限")
+    return (
+        db.query(Record)
+        .filter(Record.category_code == category_code)
+        .filter(Record.deleted_at.isnot(None))
+        .order_by(Record.deleted_at.desc())
+        .all()
+    )

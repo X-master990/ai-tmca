@@ -262,6 +262,25 @@ export default function Records() {
           categories={categories}
           recordsByCategory={filteredByCategory}
           permissions={permissions}
+          onDeleted={(id, code) => {
+            setRecordsByCategory((prev) => {
+              if (!prev) return prev;
+              const list = prev.get(code);
+              if (!list) return prev;
+              const next = new Map(prev);
+              next.set(code, list.filter((r) => r.id !== id));
+              return next;
+            });
+          }}
+          onRestored={(rec) => {
+            setRecordsByCategory((prev) => {
+              if (!prev) return prev;
+              const next = new Map(prev);
+              const list = next.get(rec.category_code) ?? [];
+              next.set(rec.category_code, [rec, ...list.filter((r) => r.id !== rec.id)]);
+              return next;
+            });
+          }}
         />
       </div>
     </div>

@@ -442,3 +442,12 @@ export interface UndoResult {
 
 export const undoLastEdit = () =>
   api<UndoResult>('/api/records/undo', { method: 'POST' });
+
+export const deleteRecord = (id: number) =>
+  api<{ id: number; deleted: boolean }>(`/api/records/${id}`, { method: 'DELETE' });
+
+export const restoreRecord = (id: number) =>
+  api<RecordRow>(`/api/records/${id}/restore`, { method: 'POST' });
+
+export const fetchDeleted = (code: string) =>
+  api<RecordRow[]>(`/api/records/deleted?category_code=${encodeURIComponent(code)}`);

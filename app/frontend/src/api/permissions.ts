@@ -3,6 +3,7 @@ import { api } from './client';
 export interface PermissionsOut {
   role: string;
   editable_fields_by_category: { [code: string]: string[] };
+  deletable_categories: string[];
 }
 
 export const fetchPermissions = () =>

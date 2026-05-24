@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { columnsFor, getCellValue, Category, RecordRow } from '../api/records';
+import {
+  columnsFor,
+  getCellValue,
+  deleteRecord,
+  restoreRecord,
+  fetchDeleted,
+  Category,
+  RecordRow,
+} from '../api/records';
 import { PermissionsOut, patchRecord } from '../api/permissions';
 import { downloadBlob, generateInvoices } from '../api/invoices';
 import { useAuthStore } from '../store/auth';
@@ -11,6 +19,8 @@ interface Props {
   categories: Category[];
   recordsByCategory: Map<string, RecordRow[]>;
   permissions: PermissionsOut | null;
+  onDeleted: (id: number, code: string) => void;
+  onRestored: (rec: RecordRow) => void;
 }
 
 const ROW_CAP = 500;
@@ -116,7 +126,13 @@ function EditableCell({
   );
 }
 
-export default function RecordsTable({ categories, recordsByCategory, permissions }: Props) {
+export default function RecordsTable({
+  categories,
+  recordsByCategory,
+  permissions,
+  onDeleted,
+  onRestored,
+}: Props) {
   const { user } = useAuthStore();
   const canIssueInvoice = user?.role === 'admin' || user?.role === 'accountant';
 
@@ -136,6 +152,19 @@ export default function RecordsTable({ categories, recordsByCategory, permission
   const [issuing, setIssuing] = useState(false);
   const [issueMsg, setIssueMsg] = useState<string | null>(null);
   const [, forceRefresh] = useState(0);
+
+  // 軟刪除 / 還原
+  const canDeleteActive = permissions?.deletable_categories?.includes(activeCode) ?? false;
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [deletedRows, setDeletedRows] = useState<RecordRow[] | null>(null);
+  const [loadingDeleted, setLoadingDeleted] = useState(false);
+  const [busyRowId, setBusyRowId] = useState<number | null>(null);
+
+  // 切換類型時，退出「已刪除」檢視
+  useEffect(() => {
+    setShowDeleted(false);
+    setDeletedRows(null);
+  }, [activeCode]);
 
   const columns = useMemo(() => columnsFor(activeCode), [activeCode]);
 
@@ -167,6 +196,54 @@ export default function RecordsTable({ categories, recordsByCategory, permission
     // 把回傳的 row 寫回 recordsByCategory（mutate in place）
     Object.assign(row, updated);
     forceRefresh((n) => n + 1);
+  }
+
+  async function toggleDeletedView() {
+    if (!showDeleted) {
+      setLoadingDeleted(true);
+      try {
+        setDeletedRows(await fetchDeleted(activeCode));
+      } finally {
+        setLoadingDeleted(false);
+      }
+    }
+    setShowDeleted((s) => !s);
+  }
+
+  async function handleDelete(r: RecordRow) {
+    if (
+      !window.confirm(
+        `確定刪除這筆？\nid=${r.id}　${r.holder_name ?? r.cert_no ?? ''}\n\n軟刪除：資料會保留，可在「🗑 已刪除」清單還原。`,
+      )
+    )
+      return;
+    setBusyRowId(r.id);
+    try {
+      await deleteRecord(r.id);
+      onDeleted(r.id, activeCode);
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(r.id);
+        return next;
+      });
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : '刪除失敗');
+    } finally {
+      setBusyRowId(null);
+    }
+  }
+
+  async function handleRestore(r: RecordRow) {
+    setBusyRowId(r.id);
+    try {
+      const rec = await restoreRecord(r.id);
+      setDeletedRows((prev) => (prev ? prev.filter((x) => x.id !== r.id) : prev));
+      onRestored(rec);
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : '還原失敗');
+    } finally {
+      setBusyRowId(null);
+    }
   }
 
   // 可開立發票：金額 > 0 且尚未有發票號
@@ -242,6 +319,10 @@ export default function RecordsTable({ categories, recordsByCategory, permission
     }
   }
 
+  const displayRows = showDeleted ? deletedRows ?? [] : activeRecords;
+  const showInvoiceCol = canIssueInvoice && !showDeleted;
+  const showActionCol = canDeleteActive;
+
   return (
     <div className="flex flex-col h-full">
       {/* Tabs */}
@@ -284,7 +365,25 @@ export default function RecordsTable({ categories, recordsByCategory, permission
             <span className="text-ok">✏️ 可編 {editableFields.size} 欄</span>
           )}
         </div>
-        {canIssueInvoice && (
+        {canDeleteActive && (
+          <button
+            onClick={toggleDeletedView}
+            disabled={loadingDeleted}
+            className={`px-3 py-1 text-xs rounded border transition disabled:opacity-50 ${
+              showDeleted
+                ? 'bg-navy text-white border-navy'
+                : 'border-slate-300 text-soft hover:bg-slate-100'
+            }`}
+            title="檢視 / 還原已刪除的紀錄"
+          >
+            {loadingDeleted
+              ? '⏳…'
+              : showDeleted
+                ? '← 返回總表'
+                : `🗑 已刪除${deletedRows ? ` (${deletedRows.length})` : ''}`}
+          </button>
+        )}
+        {showInvoiceCol && (
           <>
             <div className="text-xs text-soft">
               已選 <span className="font-mono text-ink">{selectedIds.size}</span>
@@ -325,7 +424,7 @@ export default function RecordsTable({ categories, recordsByCategory, permission
         <table className="text-xs border-collapse" style={{ tableLayout: 'fixed' }}>
           <thead className="sticky top-0 z-10 bg-cyan">
             <tr>
-              {canIssueInvoice && (
+              {showInvoiceCol && (
                 <th
                   className="px-2 py-2 text-center font-semibold text-navy border border-slate-300"
                   style={{ width: 36, minWidth: 36 }}
@@ -348,20 +447,28 @@ export default function RecordsTable({ categories, recordsByCategory, permission
                   style={{ width: c.width, minWidth: c.width }}
                 >
                   {c.label}
-                  {editableFields.has(c.key) && (
+                  {!showDeleted && editableFields.has(c.key) && (
                     <span className="ml-1 text-ok" title="可編輯">✏️</span>
                   )}
                 </th>
               ))}
+              {showActionCol && (
+                <th
+                  className="px-2 py-2 text-center font-semibold text-navy border border-slate-300"
+                  style={{ width: 70, minWidth: 70 }}
+                >
+                  操作
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
-            {activeRecords.map((r, i) => (
+            {displayRows.map((r, i) => (
               <tr
                 key={r.id}
                 className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}
               >
-                {canIssueInvoice && (() => {
+                {showInvoiceCol && (() => {
                   const issuable = !r.invoice_no && (r.amount ?? 0) > 0;
                   const reason = r.invoice_no
                     ? `已有發票號 ${r.invoice_no}（不會重複開立）`
@@ -419,21 +526,49 @@ export default function RecordsTable({ categories, recordsByCategory, permission
                       key={field}
                       row={r}
                       field={field}
-                      editable={editableFields.has(field)}
+                      editable={!showDeleted && editableFields.has(field)}
                       width={c.width}
                       onSave={(v) => saveCell(r, field, v)}
                     />
                   );
                 })}
+                {showActionCol && (
+                  <td
+                    className="px-2 py-1 border border-slate-200 text-center"
+                    style={{ width: 70, maxWidth: 70 }}
+                  >
+                    {showDeleted ? (
+                      <button
+                        onClick={() => handleRestore(r)}
+                        disabled={busyRowId === r.id}
+                        className="text-xs text-teal hover:text-navy hover:underline disabled:opacity-50"
+                        title="還原這筆"
+                      >
+                        {busyRowId === r.id ? '⏳' : '↶ 還原'}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleDelete(r)}
+                        disabled={busyRowId === r.id}
+                        className="text-xs text-warn hover:text-red-700 hover:underline disabled:opacity-50"
+                        title="刪除這筆（可還原）"
+                      >
+                        {busyRowId === r.id ? '⏳' : '🗑 刪除'}
+                      </button>
+                    )}
+                  </td>
+                )}
               </tr>
             ))}
-            {activeRecords.length === 0 && (
+            {displayRows.length === 0 && (
               <tr>
                 <td
-                  colSpan={columns.length + (canIssueInvoice ? 1 : 0)}
+                  colSpan={
+                    columns.length + (showInvoiceCol ? 1 : 0) + (showActionCol ? 1 : 0)
+                  }
                   className="px-4 py-8 text-center text-soft"
                 >
-                  無資料
+                  {showDeleted ? '沒有已刪除的紀錄' : '無資料'}
                 </td>
               </tr>
             )}
