@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from collections import defaultdict
 from datetime import date
@@ -421,14 +422,41 @@ def _to_int(v: Any) -> int | None:
         return None
     if isinstance(v, (int, float)):
         return int(v)
-    try:
-        return int(str(v).replace(",", "").strip())
-    except (ValueError, TypeError):
+    # 一格多值（換行分隔，如 "$2,525\n$2,525"）：值相同才採用，相異 → 歧義留 None
+    tokens = [t.strip() for t in re.split(r"[\n\r]+", str(v)) if t.strip()]
+    nums: list[int] = []
+    for t in tokens:
+        cleaned = t.replace("$", "").replace(",", "").replace(" ", "").strip()
+        try:
+            nums.append(int(cleaned))
+        except (ValueError, TypeError):
+            return None  # 含非數字（如 "2萬" / "300-500"）→ 歧義
+    if not nums:
         return None
+    return nums[0] if len(set(nums)) == 1 else None
+
+
+# 本資料集民國年合理範圍（110~115 年總表，含少量前後年）。超出 → 視為源頭錯字，不自動採信。
+_ROC_YEAR_MIN, _ROC_YEAR_MAX = 90, 140
+
+
+def _normalize_roc(s: str) -> str | None:
+    """清掉民國年字串裡的可修錯誤格式（多餘/連續/頭尾句點、缺分隔）。
+    一格兩個日期（換行）視為歧義 → None。"""
+    s = s.replace("/", ".").strip()
+    if re.search(r"[\n\r]", s):  # 一格多日期 → 歧義
+        return None
+    s = re.sub(r"\.+", ".", s).strip(".")  # 111..11.11 / .112.02.06 / 111.03.14.
+    parts = s.split(".")
+    if len(parts) == 2 and parts[1].isdigit() and len(parts[1]) == 4:
+        # 缺分隔：111.0311 → 111.03.11
+        s = f"{parts[0]}.{parts[1][:2]}.{parts[1][2:]}"
+    return s
 
 
 def _to_date(v: Any) -> date | None:
-    """民國年字串 → date。已是 datetime/date 直接回。"""
+    """民國年字串 → date。已是 datetime/date 直接回。
+    容錯常見格式錯誤；年份不合理（如 1110→3021、11→1922）→ None。"""
     v = _clean(v)
     if v is None:
         return None
@@ -436,7 +464,15 @@ def _to_date(v: Any) -> date | None:
         return v
     if hasattr(v, "date"):
         return v.date()
-    return roc_to_ad(str(v))
+    s = _normalize_roc(str(v))
+    if s is None:
+        return None
+    d = roc_to_ad(s)
+    if d is None:
+        return None
+    if not (_ROC_YEAR_MIN <= d.year - 1911 <= _ROC_YEAR_MAX):
+        return None
+    return d
 
 
 def _to_text(v: Any) -> str | None:
