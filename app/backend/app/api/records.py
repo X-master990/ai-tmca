@@ -154,7 +154,7 @@ class RecordPatch(BaseModel):
 DATE_FIELDS = {
     "issued_date", "invoice_date", "apply_date", "period_start", "period_end",
 }
-INT_FIELDS = {"amount", "qty", "extra.audience_size"}
+INT_FIELDS = {"amount", "qty", "extra.audience_size", "extra.floor_area"}
 BOOL_FIELDS = {"paper_application", "paper_remittance", "paper_official_doc"}
 
 

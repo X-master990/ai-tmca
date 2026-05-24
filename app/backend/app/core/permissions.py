@@ -20,14 +20,44 @@ ALL_EDITABLE_FIELDS = {
 }
 
 # 類型專屬欄位（存在 extra JSONB），以 "extra.<key>" 表示。
-# 單場次表演的節目／活動／業務承辦人等欄位 — 對應 IMPORT-MAPPING.md §7
-SINGLE_EVENT_EXTRA_FIELDS = {
-    "extra.holder_tax_id", "extra.event_name", "extra.songs", "extra.song_count",
-    "extra.venue", "extra.venue_address", "extra.audience_size",
-    "extra.contact_org", "extra.contact_title", "extra.contact_email",
-}
+# 各類型對應見 IMPORT-MAPPING.md。沒列出的類型（電腦伴唱機家族、自助KTV、
+# 交通運輸工具）所有欄位都落在標準欄位，無 extra。
 EXTRA_FIELDS_BY_CATEGORY: dict[str, set[str]] = {
-    "SINGLE_EVENT": SINGLE_EVENT_EXTRA_FIELDS,
+    # §7 單場次表演
+    "SINGLE_EVENT": {
+        "extra.holder_tax_id", "extra.event_name", "extra.songs", "extra.song_count",
+        "extra.venue", "extra.venue_address", "extra.audience_size",
+        "extra.contact_org", "extra.contact_title", "extra.contact_email",
+    },
+    # §5 街頭藝人
+    "STREET_ARTIST": {
+        "extra.email", "extra.cert_issuer", "extra.street_cert_no", "extra.street_cert_expiry",
+    },
+    # §8 公開傳輸
+    "PUBLIC_TRANSMIT": {
+        "extra.email", "extra.has_revenue", "extra.platform_name",
+        "extra.platform_url", "extra.songs",
+    },
+    # §9 告別式
+    "FUNERAL": {
+        "extra.ceremony_name", "extra.songs", "extra.language", "extra.song_count",
+        "extra.venue", "extra.funeral_company", "extra.contact_email",
+    },
+    # §10 坪數-顯示器
+    "AREA_DISPLAY": {
+        "extra.applicant_ext", "extra.email", "extra.event_name",
+        "extra.floor_area", "extra.songs", "extra.language",
+    },
+    # §11 大廳-宴會廳-客房
+    "HALL_ROOM": {
+        "extra.applicant_ext", "extra.email", "extra.floor_area",
+    },
+    # §12 競選活動
+    "ELECTION": {
+        "extra.holder_tax_id", "extra.event_name", "extra.venue", "extra.venue_address",
+        "extra.songs", "extra.language", "extra.song_count",
+        "extra.contact_org", "extra.contact_title", "extra.contact_email",
+    },
 }
 
 

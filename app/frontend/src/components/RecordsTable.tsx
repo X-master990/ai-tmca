@@ -16,7 +16,7 @@ interface Props {
 const ROW_CAP = 500;
 
 const DATE_FIELDS = new Set(['issued_date', 'invoice_date', 'apply_date', 'period_start', 'period_end']);
-const INT_FIELDS = new Set(['amount', 'qty', 'extra.audience_size']);
+const INT_FIELDS = new Set(['amount', 'qty', 'extra.audience_size', 'extra.floor_area']);
 
 function formatVal(v: unknown): string {
   if (v === null || v === undefined) return '';
