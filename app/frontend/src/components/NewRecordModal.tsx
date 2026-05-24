@@ -74,7 +74,7 @@ const COMMON_FIELDS: FieldDef[] = [
   { key: 'period_end', label: '授權結束', type: 'date' },
   { key: 'action_type', label: '辦理項目', placeholder: '例：新件 / 續約' },
   { key: 'use_address', label: '營業地址 / 使用地址', type: 'textarea' },
-  { key: 'mail_type', label: '寄證方式', type: 'select', options: ['平信', '掛號'] },
+  { key: 'mail_type', label: '郵件形式', type: 'select', options: ['平信', '掛號'] },
   { key: 'mail_address', label: '寄送地址', type: 'textarea' },
   { key: 'mail_recipient', label: '收件人' },
   { key: 'applicant_name', label: '申請人 / 代辦人' },
