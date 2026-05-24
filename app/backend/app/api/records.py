@@ -3,7 +3,7 @@ from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -28,7 +28,11 @@ def list_records(
         db.query(Record)
         .filter(Record.category_code == category_code)
         .filter(Record.deleted_at.is_(None))  # 軟刪除的不列出
-        .order_by(Record.issued_date.desc().nulls_first(), Record.id.desc())
+        # 發證日優先、沒有則用申請日，新→舊；兩者皆無（新建/未發證）排最上面
+        .order_by(
+            func.coalesce(Record.issued_date, Record.apply_date).desc().nulls_first(),
+            Record.id.desc(),
+        )
         .all()
     )
     return rows
