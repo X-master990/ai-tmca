@@ -5,13 +5,22 @@ import { RecordRow } from '../api/records';
 import {
   fetchRenewals,
   recomputeRenewals,
+  generateRenewal,
   RenewalListResponse,
 } from '../api/renewals';
 import StatusDot from '../components/StatusDot';
 
 const MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
-function MiniRow({ r }: { r: RecordRow }) {
+function MiniRow({
+  r,
+  onGenerate,
+  busy,
+}: {
+  r: RecordRow;
+  onGenerate?: (r: RecordRow) => void;
+  busy?: boolean;
+}) {
   return (
     <tr className="border-b border-slate-100 hover:bg-cyan/30">
       <td className="px-2 py-1 font-mono text-xs">{r.cert_no || '—'}</td>
@@ -20,6 +29,18 @@ function MiniRow({ r }: { r: RecordRow }) {
       <td className="px-2 py-1 font-mono text-xs">{r.period_end}</td>
       <td className="px-2 py-1 text-xs">{r.officer || '—'}</td>
       <td className="px-2 py-1 text-xs">{r.applicant_mobile || r.applicant_phone || '—'}</td>
+      {onGenerate && (
+        <td className="px-2 py-1 text-xs text-center">
+          <button
+            onClick={() => onGenerate(r)}
+            disabled={busy}
+            className="px-2 py-0.5 bg-teal text-white rounded text-xs hover:bg-navy disabled:opacity-50 transition whitespace-nowrap"
+            title="自動建立一筆「續約」紀錄（期間自舊到期次日起算一年，迄日可改）"
+          >
+            {busy ? '⏳' : '＋ 生成續約行'}
+          </button>
+        </td>
+      )}
     </tr>
   );
 }
@@ -36,6 +57,31 @@ export default function Renewals() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recomputeMsg, setRecomputeMsg] = useState<string | null>(null);
+  const [genBusyId, setGenBusyId] = useState<number | null>(null);
+
+  async function handleGenerate(r: RecordRow) {
+    if (
+      !window.confirm(
+        `生成續約行？\n${r.holder_name ?? r.cert_no ?? ''}（到期 ${r.period_end}）\n\n` +
+          '系統會新建一筆「續約」紀錄：授權期間自舊到期日次日起算、預設一年（迄日可改），' +
+          '並帶入聯絡/地址/抬頭等資料。金額、證書編號、發票需之後在總表補。',
+      )
+    )
+      return;
+    setGenBusyId(r.id);
+    setRecomputeMsg(null);
+    try {
+      const nw = await generateRenewal(r.id);
+      setRecomputeMsg(
+        `✅ 已生成續約行 id=${nw.id}（授權 ${nw.period_start} ~ ${nw.period_end}）。請至總表補金額/證書編號。`,
+      );
+      await load(month, year); // 重載：舊筆已轉「已續約」移出本名單
+    } catch (e) {
+      setRecomputeMsg(e instanceof Error ? `❌ ${e.message}` : '生成失敗');
+    } finally {
+      setGenBusyId(null);
+    }
+  }
 
   async function load(m: number, y: number) {
     setLoading(true);
@@ -182,11 +228,17 @@ export default function Renewals() {
                       <th className="px-2 py-2 text-left">到期日</th>
                       <th className="px-2 py-2 text-left">承辦</th>
                       <th className="px-2 py-2 text-left">聯絡</th>
+                      <th className="px-2 py-2 text-center">操作</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.unrenewed.map((r) => (
-                      <MiniRow key={r.id} r={r} />
+                      <MiniRow
+                        key={r.id}
+                        r={r}
+                        onGenerate={handleGenerate}
+                        busy={genBusyId === r.id}
+                      />
                     ))}
                   </tbody>
                 </table>

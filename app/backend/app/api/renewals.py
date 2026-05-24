@@ -1,17 +1,29 @@
-"""Renewals API — 續約偵測重算 + 月份清單"""
-from datetime import date
+"""Renewals API — 續約偵測重算 + 月份清單 + 一鍵生成續約行"""
+from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import and_, extract, or_
+from sqlalchemy import extract
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, require_role
+from app.api.deps import require_role
+from app.core.permissions import can_delete
 from app.database import get_db
-from app.models import Record, User
+from app.models import AuditLog, Record, User
 from app.schemas.record import RecordOut
 from app.services.renewals import compute_renewal_status
 
 router = APIRouter(prefix="/api/renewals", tags=["renewals"])
+
+# 生成續約行時，從舊紀錄複製過來的「可重用」欄位（個案專屬如金額/證號/發票/備註不帶）
+_RENEWAL_CARRY_FIELDS = (
+    "holder_name", "holder_type", "tax_id",
+    "invoice_title", "invoice_type",
+    "use_zip", "use_address",
+    "mail_type", "mail_zip", "mail_address", "mail_recipient", "mail_phone",
+    "applicant_name", "applicant_id", "applicant_mobile", "applicant_phone", "applicant_fax",
+    "onsite_name", "onsite_mobile", "onsite_phone", "onsite_ext", "onsite_fax",
+    "source", "officer",
+)
 
 
 @router.post("/recompute")
@@ -42,6 +54,7 @@ def list_renewals(
         db.query(Record)
         .filter(extract("year", Record.period_end) == year)
         .filter(extract("month", Record.period_end) == month)
+        .filter(Record.deleted_at.is_(None))
     )
     if category_code:
         q = q.filter(Record.category_code == category_code)
@@ -66,3 +79,63 @@ def list_renewals(
         "renewed": renewed,
         "other": other,
     }
+
+
+def _plus_one_year_minus_day(start: date) -> date:
+    """新授權迄日 = 起日 + 1 年 - 1 天（例 2027-01-01 → 2027-12-31）。"""
+    try:
+        one_year = start.replace(year=start.year + 1)
+    except ValueError:  # 2/29 → 隔年無此日，退到 2/28
+        one_year = start.replace(year=start.year + 1, day=28)
+    return one_year - timedelta(days=1)
+
+
+@router.post("/{record_id}/generate", response_model=RecordOut)
+def generate_renewal(
+    record_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("officer_a", "officer_b", "admin")),
+):
+    """一鍵生成續約行：複製舊紀錄的可重用欄位，辦理項目=續約，
+    授權期間自舊到期日次日起算、預設一年（迄日可改），並重算續約狀態。"""
+    old = db.query(Record).filter(Record.id == record_id).first()
+    if not old or old.deleted_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到原紀錄")
+    # 承辦限自己負責的類型（規則同刪除：admin 全部）
+    if not can_delete(user.role, old.category_code):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "無權對此類型生成續約")
+    if old.period_end is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "原紀錄無授權到期日，無法計算續約期間")
+
+    start = old.period_end + timedelta(days=1)
+    end = _plus_one_year_minus_day(start)
+
+    new = Record(
+        category_code=old.category_code,
+        action_type="續約",
+        apply_date=date.today(),
+        period_start=start,
+        period_end=end,
+        extra=dict(old.extra or {}),
+        issuance_status="紅",
+        created_by=user.id,
+        updated_by=user.id,
+        **{f: getattr(old, f) for f in _RENEWAL_CARRY_FIELDS},
+    )
+    db.add(new)
+    db.commit()
+    db.refresh(new)
+
+    db.add(AuditLog(
+        record_id=new.id,
+        user_id=user.id,
+        field_name="__created__",
+        old_value=f"renewal_of:{old.id}",
+        new_value=old.category_code,
+    ))
+    db.commit()
+
+    # 重算續約狀態：新行到期日較晚 → 舊行自動轉「綠」移出未續約名單
+    compute_renewal_status(db)
+    db.refresh(new)
+    return new

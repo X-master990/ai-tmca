@@ -32,3 +32,7 @@ export const fetchRenewals = (month: number, year?: number, categoryCode?: strin
 
 export const recomputeRenewals = () =>
   api<RecomputeResponse>('/api/renewals/recompute', { method: 'POST' });
+
+// 一鍵生成續約行：回傳新建立的續約紀錄
+export const generateRenewal = (recordId: number) =>
+  api<RecordRow>(`/api/renewals/${recordId}/generate`, { method: 'POST' });
