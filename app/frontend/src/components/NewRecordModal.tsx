@@ -33,6 +33,21 @@ const REUSABLE_FIELDS = [
   'onsite_fax',
 ] as const;
 
+// 本地時區的今天 YYYY-MM-DD（避免 toISOString 的 UTC 位移）
+function todayIso(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// 舊到期日（YYYY-MM-DD）的次日 → 新授權期間起算日
+function nextDayIso(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setDate(d.getDate() + 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 interface Props {
   categories: Category[];
   permissions: PermissionsOut;
@@ -84,7 +99,8 @@ export default function NewRecordModal({
       ? defaultCategory
       : allowedCategories[0]?.code ?? '',
   );
-  const [values, setValues] = useState<Record<string, string>>({});
+  // 申請日期預設為今天（承辦新增多為當天送件）
+  const [values, setValues] = useState<Record<string, string>>({ apply_date: todayIso() });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -143,6 +159,9 @@ export default function NewRecordModal({
         const v = (s as unknown as Record<string, string | null>)[f];
         if (v !== null && v !== undefined && v !== '') next[f] = String(v);
       }
+      // 續約起算：新授權期間從「舊到期日的次日」開始（迄日留空，年限不固定由承辦填）
+      const start = nextDayIso(s.period_end);
+      if (start) next.period_start = start;
       return next;
     });
     setAutofillFrom(s);
@@ -256,6 +275,11 @@ export default function NewRecordModal({
               <span className="ml-2 text-xs text-ok">
                 ✓ 已套用上次紀錄（id={autofillFrom.id}
                 {autofillFrom.last_apply_date && `, ${autofillFrom.last_apply_date}`}）
+                {autofillFrom.period_end && (
+                  <span className="ml-1 text-soft">
+                    · 上次到期 {autofillFrom.period_end} → 授權起算已自動帶 {nextDayIso(autofillFrom.period_end)}（迄日請自填）
+                  </span>
+                )}
                 <button
                   type="button"
                   onClick={clearAutofill}

@@ -40,6 +40,7 @@ class HolderLookupOut(BaseModel):
     id: int                   # 來源 record id（除錯用）
     category_code: str        # 上次屬於哪個類型
     last_apply_date: str | None  # 給前端顯示「上次申辦 = ...」做提示
+    period_end: str | None    # 上次授權到期日 → 前端據此算新期間起算日（次日）
     holder_name: str | None
     holder_type: str | None
     tax_id: str | None
@@ -99,6 +100,7 @@ def lookup_holder(
             id=r.id,
             category_code=r.category_code,
             last_apply_date=r.apply_date.isoformat() if r.apply_date else None,
+            period_end=r.period_end.isoformat() if r.period_end else None,
             holder_name=r.holder_name,
             holder_type=r.holder_type,
             tax_id=r.tax_id,

@@ -403,6 +403,7 @@ export interface HolderLookup {
   id: number;
   category_code: string;
   last_apply_date: string | null;
+  period_end: string | null;
   holder_name: string | null;
   holder_type: string | null;
   tax_id: string | null;
