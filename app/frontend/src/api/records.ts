@@ -61,7 +61,14 @@ export interface RecordRow {
 
 export type RecordExtra = { [key: string]: string | number | boolean | null };
 
-export const COLUMNS: { key: keyof RecordRow; label: string; width: number }[] = [
+export interface Column {
+  // 一般欄位用 RecordRow 的 key；類型專屬欄位用 "extra.<key>"
+  key: string;
+  label: string;
+  width: number;
+}
+
+export const COLUMNS: Column[] = [
   { key: 'id', label: 'ID', width: 60 },
   { key: 'cert_no', label: '證書編號', width: 120 },
   { key: 'issued_date', label: '發證日', width: 100 },
@@ -102,6 +109,73 @@ export const COLUMNS: { key: keyof RecordRow; label: string; width: number }[] =
   { key: 'renewal_status', label: '續約狀態', width: 80 },
   { key: 'note', label: '註記', width: 200 },
 ];
+
+// 單場次表演專屬欄位順序 — 對齊紙本總表（IMPORT-MAPPING.md §7）。
+// extra.* 取 JSONB 子欄位；授權期間以 period_start/end 兩個日期欄呈現（DB 即如此儲存）。
+const SINGLE_EVENT_COLUMNS: Column[] = [
+  { key: 'id', label: 'NO.', width: 60 },
+  { key: 'issued_date', label: '發證日', width: 100 },
+  { key: 'note', label: '註記', width: 160 },
+  { key: 'cert_no', label: '證書編號', width: 120 },
+  { key: 'invoice_date', label: '發票日期', width: 100 },
+  { key: 'invoice_type', label: '發票形式', width: 80 },
+  { key: 'invoice_title', label: '發票抬頭', width: 180 },
+  { key: 'tax_id', label: '統一編號', width: 100 },
+  { key: 'invoice_no', label: '發票號碼', width: 120 },
+  { key: 'amount', label: '金額(含稅)', width: 100 },
+  // 申請人 / 主辦單位 / 持證者
+  { key: 'apply_date', label: '申請日期', width: 100 },
+  { key: 'holder_name', label: '主辦單位(持證人)', width: 200 },
+  { key: 'extra.holder_tax_id', label: '統一編號', width: 100 },
+  { key: 'applicant_phone', label: '電話', width: 120 },
+  { key: 'applicant_fax', label: '傳真', width: 120 },
+  { key: 'use_address', label: '地址', width: 220 },
+  // 節目 / 活動資料
+  { key: 'extra.event_name', label: '節目名稱', width: 180 },
+  { key: 'extra.songs', label: '演出曲目', width: 260 },
+  { key: 'extra.song_count', label: '總曲數', width: 70 },
+  { key: 'extra.venue', label: '活動地點', width: 160 },
+  { key: 'extra.venue_address', label: '地址', width: 220 },
+  { key: 'qty', label: '場次', width: 60 },
+  { key: 'extra.audience_size', label: '人數', width: 70 },
+  // 授權期間
+  { key: 'period_start', label: '授權起', width: 110 },
+  { key: 'period_end', label: '授權迄', width: 110 },
+  // 業務承辦人
+  { key: 'extra.contact_org', label: '所屬單位', width: 160 },
+  { key: 'onsite_name', label: '姓名', width: 100 },
+  { key: 'extra.contact_title', label: '職稱', width: 90 },
+  { key: 'onsite_mobile', label: '手機', width: 120 },
+  { key: 'onsite_phone', label: '電話', width: 120 },
+  { key: 'onsite_ext', label: '分機', width: 60 },
+  { key: 'onsite_fax', label: '傳真', width: 120 },
+  { key: 'extra.contact_email', label: '信箱', width: 180 },
+  // 寄證地址
+  { key: 'mail_zip', label: '郵區', width: 70 },
+  { key: 'mail_address', label: '收件地址', width: 220 },
+  { key: 'mail_recipient', label: '收件人', width: 120 },
+  { key: 'mail_phone', label: '收件人電話', width: 120 },
+  // 系統狀態燈（各類型共用）
+  { key: 'issuance_status', label: '核發狀態', width: 80 },
+  { key: 'renewal_status', label: '續約狀態', width: 80 },
+];
+
+// 類型 → 專屬欄位定義；未列者用通用 COLUMNS。
+export const COLUMNS_BY_CATEGORY: Record<string, Column[]> = {
+  SINGLE_EVENT: SINGLE_EVENT_COLUMNS,
+};
+
+export const columnsFor = (code: string): Column[] =>
+  COLUMNS_BY_CATEGORY[code] ?? COLUMNS;
+
+// 依欄位代號（含 "extra.<key>"）讀出 row 的值。
+export function getCellValue(row: RecordRow, field: string): unknown {
+  if (field.startsWith('extra.')) {
+    const e = row.extra as Record<string, unknown> | null;
+    return e ? e[field.slice('extra.'.length)] : undefined;
+  }
+  return (row as unknown as { [k: string]: unknown })[field];
+}
 
 export const fetchCategories = () => api<Category[]>('/api/categories');
 export const fetchRecords = (code: string) =>

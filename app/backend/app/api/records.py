@@ -154,8 +154,30 @@ class RecordPatch(BaseModel):
 DATE_FIELDS = {
     "issued_date", "invoice_date", "apply_date", "period_start", "period_end",
 }
-INT_FIELDS = {"amount", "qty"}
+INT_FIELDS = {"amount", "qty", "extra.audience_size"}
 BOOL_FIELDS = {"paper_application", "paper_remittance", "paper_official_doc"}
+
+
+def _get_field(rec: Record, field: str):
+    """讀欄位值，支援 "extra.<key>" 取 JSONB 子欄位。"""
+    if field.startswith("extra."):
+        return (rec.extra or {}).get(field[len("extra."):])
+    return getattr(rec, field)
+
+
+def _set_field(rec: Record, field: str, value) -> None:
+    """寫欄位值，支援 "extra.<key>"。JSONB 需整個重新賦值，
+    in-place mutation 不會被 SQLAlchemy 追蹤到。"""
+    if field.startswith("extra."):
+        key = field[len("extra."):]
+        new_extra = dict(rec.extra or {})
+        if value is None:
+            new_extra.pop(key, None)
+        else:
+            new_extra[key] = value
+        rec.extra = new_extra
+    else:
+        setattr(rec, field, value)
 
 
 def _coerce(field: str, raw):
@@ -307,7 +329,7 @@ def undo_last_edit(
         .all()
     )
 
-    previous_main = getattr(rec, primary.field_name)
+    previous_main = _get_field(rec, primary.field_name)
     restored_main = (
         _coerce(primary.field_name, primary.old_value)
         if primary.old_value not in (None, "") else None
@@ -318,7 +340,7 @@ def undo_last_edit(
             _coerce(entry.field_name, entry.old_value)
             if entry.old_value not in (None, "") else None
         )
-        setattr(rec, entry.field_name, restored_val)
+        _set_field(rec, entry.field_name, restored_val)
         if entry.id != primary.id:
             also.append(entry.field_name)
         db.delete(entry)
@@ -370,10 +392,10 @@ def patch_record(
     changes = []
     for field, raw in body.items():
         new_val = _coerce(field, raw)
-        old_val = getattr(rec, field)
+        old_val = _get_field(rec, field)
         if old_val == new_val:
             continue
-        setattr(rec, field, new_val)
+        _set_field(rec, field, new_val)
         changes.append((field, old_val, new_val))
 
     if not changes:

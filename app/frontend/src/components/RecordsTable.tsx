@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { COLUMNS, Category, RecordRow } from '../api/records';
+import { columnsFor, getCellValue, Category, RecordRow } from '../api/records';
 import { PermissionsOut, patchRecord } from '../api/permissions';
 import { downloadBlob, generateInvoices } from '../api/invoices';
 import { useAuthStore } from '../store/auth';
@@ -16,7 +16,7 @@ interface Props {
 const ROW_CAP = 500;
 
 const DATE_FIELDS = new Set(['issued_date', 'invoice_date', 'apply_date', 'period_start', 'period_end']);
-const INT_FIELDS = new Set(['amount', 'qty']);
+const INT_FIELDS = new Set(['amount', 'qty', 'extra.audience_size']);
 
 function formatVal(v: unknown): string {
   if (v === null || v === undefined) return '';
@@ -37,7 +37,7 @@ function EditableCell({
   width: number;
   onSave: (newValue: unknown) => Promise<void>;
 }) {
-  const initial = formatVal((row as unknown as { [k: string]: unknown })[field]);
+  const initial = formatVal(getCellValue(row, field));
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(initial);
   const [busy, setBusy] = useState(false);
@@ -137,6 +137,8 @@ export default function RecordsTable({ categories, recordsByCategory, permission
   const [issueMsg, setIssueMsg] = useState<string | null>(null);
   const [, forceRefresh] = useState(0);
 
+  const columns = useMemo(() => columnsFor(activeCode), [activeCode]);
+
   const fullList = useMemo(
     () => recordsByCategory.get(activeCode) || [],
     [activeCode, recordsByCategory],
@@ -146,12 +148,12 @@ export default function RecordsTable({ categories, recordsByCategory, permission
     if (!filter.trim()) return fullList;
     const q = filter.toLowerCase();
     return fullList.filter((r) =>
-      COLUMNS.some((c) => {
-        const v = (r as unknown as { [k: string]: unknown })[c.key as string];
+      columns.some((c) => {
+        const v = getCellValue(r, c.key);
         return v !== null && v !== undefined && String(v).toLowerCase().includes(q);
       }),
     );
-  }, [fullList, filter]);
+  }, [fullList, filter, columns]);
 
   const activeRecords = useMemo(() => filtered.slice(0, ROW_CAP), [filtered]);
 
@@ -339,14 +341,14 @@ export default function RecordsTable({ categories, recordsByCategory, permission
                   />
                 </th>
               )}
-              {COLUMNS.map((c) => (
+              {columns.map((c) => (
                 <th
-                  key={c.key as string}
+                  key={c.key}
                   className="px-2 py-2 text-left font-semibold text-navy border border-slate-300 whitespace-nowrap"
                   style={{ width: c.width, minWidth: c.width }}
                 >
                   {c.label}
-                  {editableFields.has(c.key as string) && (
+                  {editableFields.has(c.key) && (
                     <span className="ml-1 text-ok" title="可編輯">✏️</span>
                   )}
                 </th>
@@ -385,8 +387,8 @@ export default function RecordsTable({ categories, recordsByCategory, permission
                     </td>
                   );
                 })()}
-                {COLUMNS.map((c) => {
-                  const field = c.key as string;
+                {columns.map((c) => {
+                  const field = c.key;
                   // id 欄位永遠唯讀
                   if (field === 'id') {
                     return (
@@ -428,7 +430,7 @@ export default function RecordsTable({ categories, recordsByCategory, permission
             {activeRecords.length === 0 && (
               <tr>
                 <td
-                  colSpan={COLUMNS.length + (canIssueInvoice ? 1 : 0)}
+                  colSpan={columns.length + (canIssueInvoice ? 1 : 0)}
                   className="px-4 py-8 text-center text-soft"
                 >
                   無資料

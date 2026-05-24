@@ -19,17 +19,30 @@ ALL_EDITABLE_FIELDS = {
     "issuance_status", "renewal_status",
 }
 
+# 類型專屬欄位（存在 extra JSONB），以 "extra.<key>" 表示。
+# 單場次表演的節目／活動／業務承辦人等欄位 — 對應 IMPORT-MAPPING.md §7
+SINGLE_EVENT_EXTRA_FIELDS = {
+    "extra.holder_tax_id", "extra.event_name", "extra.songs", "extra.song_count",
+    "extra.venue", "extra.venue_address", "extra.audience_size",
+    "extra.contact_org", "extra.contact_title", "extra.contact_email",
+}
+EXTRA_FIELDS_BY_CATEGORY: dict[str, set[str]] = {
+    "SINGLE_EVENT": SINGLE_EVENT_EXTRA_FIELDS,
+}
+
 
 def allowed_fields(role: str, category_code: str) -> set[str]:
-    """回傳該 role 在該 category 可編輯的欄位集合。空集合 = 無編輯權。"""
+    """回傳該 role 在該 category 可編輯的欄位集合。空集合 = 無編輯權。
+    擁有全欄位權的角色，連帶取得該類型的 extra 專屬欄位。"""
+    extra = EXTRA_FIELDS_BY_CATEGORY.get(category_code, set())
     if role == "admin":
-        return ALL_EDITABLE_FIELDS
+        return ALL_EDITABLE_FIELDS | extra
     if role == "officer_a":
-        return ALL_EDITABLE_FIELDS if category_code == "SINGLE_EVENT" else set()
+        return (ALL_EDITABLE_FIELDS | extra) if category_code == "SINGLE_EVENT" else set()
     if role == "officer_b":
-        return ALL_EDITABLE_FIELDS if category_code != "SINGLE_EVENT" else set()
+        return (ALL_EDITABLE_FIELDS | extra) if category_code != "SINGLE_EVENT" else set()
     if role == "accountant":
         return INVOICE_FIELDS
     if role == "issuer":
-        return ALL_EDITABLE_FIELDS
+        return ALL_EDITABLE_FIELDS | extra
     return set()  # viewer / 其他
