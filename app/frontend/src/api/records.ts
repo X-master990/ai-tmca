@@ -101,6 +101,7 @@ export const COLUMNS: Column[] = [
   { key: 'serial_no', label: '機號', width: 240 },
   { key: 'period_start', label: '授權起', width: 110 },
   { key: 'period_end', label: '授權迄', width: 110 },
+  { key: 'mail_type', label: '寄證方式', width: 80 },
   { key: 'mail_zip', label: '寄證郵區', width: 80 },
   { key: 'mail_address', label: '寄證地址', width: 240 },
   { key: 'mail_recipient', label: '收件人', width: 140 },
@@ -130,6 +131,7 @@ const PERIOD: Column[] = [
   { key: 'period_end', label: '授權迄', width: 110 },
 ];
 const MAIL: Column[] = [
+  { key: 'mail_type', label: '寄證方式', width: 80 },
   { key: 'mail_zip', label: '郵區', width: 70 },
   { key: 'mail_address', label: '收件地址', width: 220 },
   { key: 'mail_recipient', label: '收件人', width: 120 },

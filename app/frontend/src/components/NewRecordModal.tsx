@@ -59,8 +59,9 @@ interface Props {
 interface FieldDef {
   key: string;
   label: string;
-  type?: 'text' | 'date' | 'number' | 'textarea';
+  type?: 'text' | 'date' | 'number' | 'textarea' | 'select';
   placeholder?: string;
+  options?: string[]; // type==='select' 用
 }
 
 const COMMON_FIELDS: FieldDef[] = [
@@ -73,6 +74,7 @@ const COMMON_FIELDS: FieldDef[] = [
   { key: 'period_end', label: '授權結束', type: 'date' },
   { key: 'action_type', label: '辦理項目', placeholder: '例：新件 / 續約' },
   { key: 'use_address', label: '營業地址 / 使用地址', type: 'textarea' },
+  { key: 'mail_type', label: '寄證方式', type: 'select', options: ['平信', '掛號'] },
   { key: 'mail_address', label: '寄送地址', type: 'textarea' },
   { key: 'mail_recipient', label: '收件人' },
   { key: 'applicant_name', label: '申請人 / 代辦人' },
@@ -364,6 +366,18 @@ export default function NewRecordModal({
                     disabled={!editable}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal disabled:bg-slate-100 disabled:text-soft"
                   />
+                ) : f.type === 'select' ? (
+                  <select
+                    value={values[f.key] ?? ''}
+                    onChange={(e) => setVal(f.key, e.target.value)}
+                    disabled={!editable}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-teal disabled:bg-slate-100 disabled:text-soft"
+                  >
+                    <option value="">（未指定）</option>
+                    {(f.options ?? []).map((o) => (
+                      <option key={o} value={o}>{o}</option>
+                    ))}
+                  </select>
                 ) : (
                   <input
                     type={f.type ?? 'text'}

@@ -27,6 +27,10 @@ const ROW_CAP = 500;
 
 const DATE_FIELDS = new Set(['issued_date', 'invoice_date', 'apply_date', 'period_start', 'period_end']);
 const INT_FIELDS = new Set(['amount', 'qty', 'extra.audience_size', 'extra.floor_area']);
+// 限定選項的欄位 → 編輯時用下拉選單
+const ENUM_OPTIONS: Record<string, string[]> = {
+  mail_type: ['平信', '掛號'],
+};
 
 function formatVal(v: unknown): string {
   if (v === null || v === undefined) return '';
@@ -62,15 +66,17 @@ function EditableCell({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initial]);
 
-  async function commit() {
+  async function commit(override?: string) {
     setEditing(false);
-    if (value === initial) return;
+    const v = override !== undefined ? override : value;
+    if (override !== undefined) setValue(override);
+    if (v === initial) return;
     setBusy(true);
     setErr(null);
     try {
-      let raw: unknown = value;
-      if (value === '') raw = null;
-      else if (INT_FIELDS.has(field)) raw = parseInt(value, 10);
+      let raw: unknown = v;
+      if (v === '') raw = null;
+      else if (INT_FIELDS.has(field)) raw = parseInt(v, 10);
       await onSave(raw);
     } catch (e) {
       setErr(e instanceof Error ? e.message : '存檔失敗');
@@ -93,23 +99,39 @@ function EditableCell({
   }
 
   if (editing) {
+    const opts = ENUM_OPTIONS[field];
     return (
       <td className="border border-teal" style={{ width, maxWidth: width, padding: 0 }}>
-        <input
-          autoFocus
-          type={DATE_FIELDS.has(field) ? 'date' : 'text'}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onBlur={commit}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-            if (e.key === 'Escape') {
-              setValue(initial);
-              setEditing(false);
-            }
-          }}
-          className="w-full h-full px-2 py-1 text-xs outline-none"
-        />
+        {opts ? (
+          <select
+            autoFocus
+            value={value}
+            onChange={(e) => commit(e.target.value)}
+            onBlur={() => commit()}
+            className="w-full h-full px-2 py-1 text-xs outline-none bg-white"
+          >
+            <option value="">（空）</option>
+            {opts.map((o) => (
+              <option key={o} value={o}>{o}</option>
+            ))}
+          </select>
+        ) : (
+          <input
+            autoFocus
+            type={DATE_FIELDS.has(field) ? 'date' : 'text'}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onBlur={() => commit()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+              if (e.key === 'Escape') {
+                setValue(initial);
+                setEditing(false);
+              }
+            }}
+            className="w-full h-full px-2 py-1 text-xs outline-none"
+          />
+        )}
       </td>
     );
   }
