@@ -27,6 +27,7 @@ from openpyxl import load_workbook
 
 from app.database import SessionLocal
 from app.models import Record
+from app.utils.roc_date import roc_to_ad
 from scripts.import_excel import (
     SHEET_CONFIG,
     _clean,
@@ -35,6 +36,40 @@ from scripts.import_excel import (
     _to_period_date,
     is_empty_row,
 )
+
+
+# ── 修補前的「舊」清洗行為，用來判定「當初被丟、現在能救回」(old=None & new!=None) ──
+def _old_int(v: Any) -> int | None:
+    v = _clean(v)
+    if v is None:
+        return None
+    if isinstance(v, (int, float)):
+        return int(v)
+    try:
+        return int(str(v).replace(",", "").strip())
+    except (ValueError, TypeError):
+        return None
+
+
+def _old_date(v: Any) -> date | None:
+    v = _clean(v)
+    if v is None:
+        return None
+    if isinstance(v, date):
+        return v
+    if hasattr(v, "date"):
+        return v.date()
+    return roc_to_ad(str(v))
+
+
+def _old_period_date(y: Any, m: Any, d: Any) -> date | None:
+    yi, mi, di = _old_int(y), _old_int(m), _old_int(d)
+    if yi is None or mi is None or di is None:
+        return None
+    try:
+        return date(yi + 1911, mi, di)
+    except ValueError:
+        return None
 
 # 要回填的目標欄位中文標籤（除錯/清單顯示用）
 LABELS = {
@@ -97,25 +132,33 @@ def main() -> None:
                     raw = _cell(row, col_idx)
                     if _clean(raw) is None:
                         continue
-                    new_val = _to_date(raw) if dtype == "date" else _to_int(raw)
-                    if new_val is None:
-                        row_manual.append((LABELS.get(key, key), repr(raw), "清洗後仍無法解析（歧義/不合法）"))
+                    if dtype == "date":
+                        old_val, new_val = _old_date(raw), _to_date(raw)
                     else:
+                        old_val, new_val = _old_int(raw), _to_int(raw)
+                    if new_val is None:
+                        # 原本有值、新舊都救不回 → 人工
+                        row_manual.append((LABELS.get(key, key), repr(raw), "清洗後仍無法解析（歧義/不合法）"))
+                    elif old_val is None:
+                        # 當初被丟、現在能無歧義救回 → 候選
                         row_new[(kind, key)] = new_val
+                    # else: 當初就匯入正常，略過
 
-                # 授權期間（y/m/d 三欄）
-                ps = _to_period_date(_period(cols_cfg, row, "ps_y"), _period(cols_cfg, row, "ps_m"), _period(cols_cfg, row, "ps_d"))
-                pe = _to_period_date(_period(cols_cfg, row, "pe_y"), _period(cols_cfg, row, "pe_m"), _period(cols_cfg, row, "pe_d"))
-                ps_has = any(_clean(_period(cols_cfg, row, k)) is not None for k in ("ps_y", "ps_m", "ps_d"))
-                pe_has = any(_clean(_period(cols_cfg, row, k)) is not None for k in ("pe_y", "pe_m", "pe_d"))
-                if ps_has and ps is None:
-                    row_manual.append(("授權起", _period_repr(cols_cfg, row, "ps"), "年/月/日組不成合法日期"))
-                if pe_has and pe is None:
-                    row_manual.append(("授權迄", _period_repr(cols_cfg, row, "pe"), "年/月/日組不成合法日期"))
-                if ps is not None:
-                    row_new[("col", "period_start")] = ps
-                if pe is not None:
-                    row_new[("col", "period_end")] = pe
+                # 授權期間（y/m/d 三欄）：同樣只在「舊丟、新救回」時才算候選
+                pargs = lambda p: (  # noqa: E731
+                    _period(cols_cfg, row, f"{p}_y"),
+                    _period(cols_cfg, row, f"{p}_m"),
+                    _period(cols_cfg, row, f"{p}_d"),
+                )
+                for p, field in (("ps", "period_start"), ("pe", "period_end")):
+                    y, m, d = pargs(p)
+                    has = any(_clean(x) is not None for x in (y, m, d))
+                    new_pd = _to_period_date(y, m, d)
+                    old_pd = _old_period_date(y, m, d)
+                    if has and new_pd is None:
+                        row_manual.append((LABELS[field], _period_repr(cols_cfg, row, p), "年/月/日組不成合法日期"))
+                    elif new_pd is not None and old_pd is None:
+                        row_new[("col", field)] = new_pd
 
                 for label, raw, reason in row_manual:
                     manual.append((sheet_name, row_idx, cert or "", label, raw, reason))
