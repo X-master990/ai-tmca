@@ -41,12 +41,14 @@ function formatVal(v: unknown): string {
 function EditableCell({
   row,
   field,
+  label,
   editable,
   width,
   onSave,
 }: {
   row: RecordRow;
   field: string;
+  label: string;
   editable: boolean;
   width: number;
   onSave: (newValue: unknown) => Promise<void>;
@@ -71,6 +73,14 @@ function EditableCell({
     const v = override !== undefined ? override : value;
     if (override !== undefined) setValue(override);
     if (v === initial) return;
+    // 修改總表資料前先確認
+    const ok = window.confirm(
+      `確定要修改「${label}」？\n\n原值：${initial || '（空）'}\n新值：${v || '（空）'}`,
+    );
+    if (!ok) {
+      setValue(initial);
+      return;
+    }
     setBusy(true);
     setErr(null);
     try {
@@ -548,6 +558,7 @@ export default function RecordsTable({
                       key={field}
                       row={r}
                       field={field}
+                      label={c.label}
                       editable={!showDeleted && editableFields.has(field)}
                       width={c.width}
                       onSave={(v) => saveCell(r, field, v)}
