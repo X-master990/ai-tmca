@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/auth';
-import { RecordRow } from '../api/records';
+import { RecordRow, Category, fetchCategories } from '../api/records';
+import { exportRenewals } from '../api/exports';
 import {
   fetchRenewals,
   recomputeRenewals,
@@ -45,6 +46,45 @@ function MiniRow({
   );
 }
 
+/** 把名單依類別(category_code)分組，插入類別標題列；類別順序依 categories 的 sort_order。 */
+function GroupedRows({
+  rows,
+  categories,
+  colSpan,
+  onGenerate,
+  busyId,
+}: {
+  rows: RecordRow[];
+  categories: Category[];
+  colSpan: number;
+  onGenerate?: (r: RecordRow) => void;
+  busyId?: number | null;
+}) {
+  const known = new Set(categories.map((c) => c.code));
+  const groups = categories
+    .map((c) => ({ code: c.code, name: c.name_zh, rs: rows.filter((r) => r.category_code === c.code) }))
+    .filter((g) => g.rs.length > 0);
+  const extra = rows.filter((r) => !known.has(r.category_code));
+  if (extra.length) groups.push({ code: '__other__', name: '未分類', rs: extra });
+
+  return (
+    <>
+      {groups.map((g) => (
+        <Fragment key={g.code}>
+          <tr className="bg-cyan/40 border-y border-slate-200">
+            <td colSpan={colSpan} className="px-2 py-1.5 font-bold text-navy text-xs">
+              {g.name}（{g.rs.length}）
+            </td>
+          </tr>
+          {g.rs.map((r) => (
+            <MiniRow key={r.id} r={r} onGenerate={onGenerate} busy={busyId === r.id} />
+          ))}
+        </Fragment>
+      ))}
+    </>
+  );
+}
+
 const ALLOWED_ROLES = new Set(['officer_a', 'officer_b', 'admin']);
 
 export default function Renewals() {
@@ -54,10 +94,23 @@ export default function Renewals() {
   const [month, setMonth] = useState<number>(new Date().getMonth() + 1);
   const [year, setYear] = useState<number>(new Date().getFullYear());
   const [data, setData] = useState<RenewalListResponse | null>(null);
+  const [cats, setCats] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recomputeMsg, setRecomputeMsg] = useState<string | null>(null);
   const [genBusyId, setGenBusyId] = useState<number | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      await exportRenewals(month, year);
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : '匯出失敗');
+    } finally {
+      setExporting(false);
+    }
+  }
 
   async function handleGenerate(r: RecordRow) {
     if (
@@ -100,6 +153,13 @@ export default function Renewals() {
     if (!allowed) return;
     load(month, year);
   }, [month, year, allowed]);
+
+  useEffect(() => {
+    if (!allowed) return;
+    fetchCategories()
+      .then((cs) => setCats([...cs].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))))
+      .catch(() => {});
+  }, [allowed]);
 
   async function doRecompute() {
     setRecomputeMsg('計算中…');
@@ -186,6 +246,14 @@ export default function Renewals() {
             </button>
           ))}
         </div>
+        <button
+          onClick={handleExport}
+          disabled={exporting || !data}
+          className="ml-auto px-3 py-1.5 text-xs rounded border border-teal text-teal hover:bg-teal hover:text-white transition disabled:opacity-50"
+          title="匯出本月續約名單為 Excel（含續約狀態、完整欄位）"
+        >
+          {exporting ? '⏳ 匯出中…' : '⬇ 匯出 Excel'}
+        </button>
       </div>
 
       {/* Body */}
@@ -232,14 +300,13 @@ export default function Renewals() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.unrenewed.map((r) => (
-                      <MiniRow
-                        key={r.id}
-                        r={r}
-                        onGenerate={handleGenerate}
-                        busy={genBusyId === r.id}
-                      />
-                    ))}
+                    <GroupedRows
+                      rows={data.unrenewed}
+                      categories={cats}
+                      colSpan={7}
+                      onGenerate={handleGenerate}
+                      busyId={genBusyId}
+                    />
                   </tbody>
                 </table>
               )}
@@ -268,9 +335,7 @@ export default function Renewals() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.renewed.map((r) => (
-                      <MiniRow key={r.id} r={r} />
-                    ))}
+                    <GroupedRows rows={data.renewed} categories={cats} colSpan={6} />
                   </tbody>
                 </table>
               )}

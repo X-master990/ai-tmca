@@ -1,0 +1,30 @@
+# 讓 Railway 建置又快又小 —— 排除不需進映像的東西
+.git/
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/.venv/
+**/venv/
+**/node_modules/
+**/dist/
+**/build/
+*.log
+
+# 本機資料/憑證/輸出（不該進映像）
+**/pg_data/
+**/caddy_data/
+**/tmca_files/
+**/.env
+**/.env.local
+
+# 大圖與暫存
+*.jpg
+*.jpeg
+*.png
+.DS_Store
+**/.DS_Store
+~$*.docx
+
+# 文件（不需進映像，但保留總表 xlsx 與 templates 供種子/產檔）
+*.md
+prototype.html

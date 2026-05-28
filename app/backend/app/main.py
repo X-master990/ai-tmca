@@ -1,13 +1,17 @@
 """TMCA 音樂版權授權系統 — FastAPI entry"""
+import os
 from contextlib import asynccontextmanager
 from datetime import datetime
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from sqlalchemy import text
 
 from app.api.auth import router as auth_router
 from app.api.categories import router as categories_router
+from app.api.exports import router as exports_router
+from app.api.invoices import router as invoices_router
 from app.api.records import router as records_router
 from app.api.renewals import router as renewals_router
 from app.api.reports import router as reports_router
@@ -50,6 +54,8 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(categories_router)
+app.include_router(exports_router)
+app.include_router(invoices_router)
 app.include_router(records_router)
 app.include_router(renewals_router)
 app.include_router(reports_router)
@@ -86,3 +92,23 @@ def root():
         "docs": "/api/docs",
         "health": "/api/health",
     }
+
+
+# ────────────────────────────────────────────────────────────────
+# 靜態前端（單一容器部署時，後端同時提供 React build）
+# 本機 docker-compose 開發無此目錄 → 不註冊，由 nginx/Caddy 負責前端。
+# 必須放在所有 /api router 之後：catch-all 為最後註冊，/api/* 會先被匹配。
+# ────────────────────────────────────────────────────────────────
+STATIC_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "static"))
+
+if os.path.isdir(STATIC_DIR):
+    _index = os.path.join(STATIC_DIR, "index.html")
+
+    @app.get("/{full_path:path}")
+    async def spa(full_path: str):
+        """檔案存在就回該檔，否則回 index.html（支援 React Router 前端路由）。"""
+        candidate = os.path.normpath(os.path.join(STATIC_DIR, full_path))
+        # 防目錄穿越：只允許 STATIC_DIR 底下的檔案
+        if candidate.startswith(STATIC_DIR + os.sep) and os.path.isfile(candidate):
+            return FileResponse(candidate)
+        return FileResponse(_index)

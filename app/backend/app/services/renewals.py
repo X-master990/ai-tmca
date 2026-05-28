@@ -18,10 +18,56 @@
 from __future__ import annotations
 
 import time
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta
+from typing import Iterable
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+
+@dataclass(frozen=True)
+class RenewalCandidate:
+    """SQL EXISTS 子查詢的 Python 版本對應 — 用來純函數比對。"""
+    id: int
+    category_code: str | None
+    holder_name: str | None
+    tax_id: str | None
+    period_end: date | None
+
+
+def classify_renewal_status(
+    rec: RenewalCandidate,
+    others: Iterable[RenewalCandidate],
+    today: date | None = None,
+) -> str:
+    """純函數版本的續約規則，與 COMPUTE_SQL 語意對齊。
+
+    回傳 '綠' / '紅' / '灰'，供 unit test 用。
+    """
+    if rec.holder_name is None or rec.period_end is None:
+        return "灰"
+
+    for o in others:
+        if o.id == rec.id:
+            continue
+        if o.category_code != rec.category_code:
+            continue
+        if o.holder_name != rec.holder_name:
+            continue
+        # tax_id 任一為 NULL 視為相符
+        if not (o.tax_id is None or rec.tax_id is None or o.tax_id == rec.tax_id):
+            continue
+        if o.period_end is None:
+            continue
+        if o.period_end > rec.period_end:
+            return "綠"
+
+    if today is None:
+        today = date.today()
+    if today <= rec.period_end <= today + timedelta(days=30):
+        return "紅"
+    return "灰"
 
 # 一條 SQL 處理掉全部 ─ 用 EXISTS 子查詢比對「同一持證者更晚到期的紀錄」
 COMPUTE_SQL = text(

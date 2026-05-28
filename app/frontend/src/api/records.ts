@@ -383,6 +383,26 @@ export const COLUMNS_BY_CATEGORY: Record<string, Column[]> = {
 export const columnsFor = (code: string): Column[] =>
   COLUMNS_BY_CATEGORY[code] ?? COLUMNS;
 
+// 「新增案件 Excel 格式」精簡作業檢視 — 對齊 NewRecordModal 的輸入欄位（holder_name + COMMON_FIELDS），
+// 跨類別共用。承辦看的是同一份總表資料，只是換成熟悉的新案欄位/順序，可直接編輯並同步回總表。
+export const FORM_COLUMNS: Column[] = [
+  { key: 'holder_name', label: '持證者', width: 200 },
+  { key: 'tax_id', label: '統一編號', width: 110 },
+  { key: 'invoice_title', label: '發票抬頭', width: 200 },
+  { key: 'amount', label: '合約金額', width: 100 },
+  { key: 'apply_date', label: '申辦日期', width: 110 },
+  { key: 'period_start', label: '授權起始', width: 110 },
+  { key: 'period_end', label: '授權結束', width: 110 },
+  { key: 'action_type', label: '辦理項目', width: 100 },
+  { key: 'use_address', label: '營業 / 使用地址', width: 240 },
+  { key: 'mail_type', label: '郵件形式', width: 80 },
+  { key: 'mail_address', label: '寄送地址', width: 240 },
+  { key: 'mail_recipient', label: '收件人', width: 140 },
+  { key: 'applicant_name', label: '申請人 / 代辦人', width: 130 },
+  { key: 'qty', label: '台數 / 申報數', width: 90 },
+  { key: 'note', label: '備註', width: 220 },
+];
+
 // 依欄位代號（含 "extra.<key>"）讀出 row 的值。
 export function getCellValue(row: RecordRow, field: string): unknown {
   if (field.startsWith('extra.')) {
@@ -407,6 +427,7 @@ export interface HolderLookup {
   category_code: string;
   last_apply_date: string | null;
   period_end: string | null;
+  qty: number | null;
   holder_name: string | null;
   holder_type: string | null;
   tax_id: string | null;

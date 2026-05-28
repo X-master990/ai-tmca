@@ -164,6 +164,8 @@ export default function NewRecordModal({
       // 續約起算：新授權期間從「舊到期日的次日」開始（迄日留空，年限不固定由承辦填）
       const start = nextDayIso(s.period_end);
       if (start) next.period_start = start;
+      // 台數 / 申報數：續約多半沿用上次數量，帶入供承辦確認（可改）
+      if (s.qty !== null && s.qty !== undefined) next.qty = String(s.qty);
       return next;
     });
     setAutofillFrom(s);
@@ -315,7 +317,7 @@ export default function NewRecordModal({
           {showSuggest && suggestions.length > 0 && (
             <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg max-h-72 overflow-auto z-10">
               <div className="px-3 py-1.5 text-xs text-soft bg-slate-50 border-b">
-                找到 {suggestions.length} 筆過往紀錄 — 點選即帶入聯絡 / 地址 / 抬頭
+                找到 {suggestions.length} 筆過往紀錄 — 點選即帶入聯絡 / 地址 / 抬頭 / 台數
               </div>
               {suggestions.map((s) => (
                 <button

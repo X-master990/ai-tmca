@@ -62,9 +62,11 @@ def list_renewals(
 
     rows = q.order_by(Record.period_end, Record.id).all()
 
-    unrenewed = [RecordOut.model_validate(r) for r in rows if r.renewal_status == "紅"]
+    # 未續約 = 該月到期且尚未被續約（非綠）。紅(即將到期)與灰(尚未續約)都算未續約，
+    # 與 30 天紅燈窗口無關 — 否則本月以外的月份名單會全空。
     renewed = [RecordOut.model_validate(r) for r in rows if r.renewal_status == "綠"]
-    other = [RecordOut.model_validate(r) for r in rows if r.renewal_status not in ("紅", "綠")]
+    unrenewed = [RecordOut.model_validate(r) for r in rows if r.renewal_status != "綠"]
+    other: list[RecordOut] = []  # 灰已併入未續約；保留鍵以相容前端
 
     return {
         "year": year,

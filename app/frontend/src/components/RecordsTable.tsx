@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   columnsFor,
+  FORM_COLUMNS,
   getCellValue,
   deleteRecord,
   restoreRecord,
@@ -10,6 +11,7 @@ import {
 } from '../api/records';
 import { PermissionsOut, patchRecord } from '../api/permissions';
 import { downloadBlob, generateInvoices } from '../api/invoices';
+import { exportRecords } from '../api/exports';
 import { useAuthStore } from '../store/auth';
 import StatusDot from './StatusDot';
 
@@ -179,6 +181,8 @@ export default function RecordsTable({
     return categories[0]?.code ?? '';
   }, [categories, permissions]);
   const [activeCode, setActiveCode] = useState<string>(defaultCode);
+  // 檢視模式：full=總表全欄位；form=我的Excel(新增案件格式精簡欄位)。兩者同一份資料、皆可編輯。
+  const [viewMode, setViewMode] = useState<'full' | 'form'>('full');
   const [filter, setFilter] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [issuing, setIssuing] = useState(false);
@@ -191,6 +195,19 @@ export default function RecordsTable({
   const [deletedRows, setDeletedRows] = useState<RecordRow[] | null>(null);
   const [loadingDeleted, setLoadingDeleted] = useState(false);
   const [busyRowId, setBusyRowId] = useState<number | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const label = categories.find((c) => c.code === activeCode)?.name_zh ?? activeCode;
+      await exportRecords(activeCode, label);
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : '匯出失敗');
+    } finally {
+      setExporting(false);
+    }
+  }
 
   // 切換類型時，退出「已刪除」檢視
   useEffect(() => {
@@ -198,7 +215,10 @@ export default function RecordsTable({
     setDeletedRows(null);
   }, [activeCode]);
 
-  const columns = useMemo(() => columnsFor(activeCode), [activeCode]);
+  const columns = useMemo(
+    () => (viewMode === 'form' ? FORM_COLUMNS : columnsFor(activeCode)),
+    [activeCode, viewMode],
+  );
 
   const fullList = useMemo(
     () => recordsByCategory.get(activeCode) || [],
@@ -377,6 +397,27 @@ export default function RecordsTable({
 
       {/* Filter + permission status */}
       <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-center gap-3">
+        {/* 檢視切換：總表全欄位 ↔ 我的Excel(新增案件格式) — 同一份資料、同樣可編輯 */}
+        <div className="flex rounded border border-slate-300 overflow-hidden text-xs shrink-0">
+          <button
+            onClick={() => setViewMode('full')}
+            className={`px-3 py-1.5 transition ${
+              viewMode === 'full' ? 'bg-navy text-white' : 'bg-white text-soft hover:bg-slate-100'
+            }`}
+            title="總表全欄位檢視"
+          >
+            📋 總表檢視
+          </button>
+          <button
+            onClick={() => setViewMode('form')}
+            className={`px-3 py-1.5 transition border-l border-slate-300 ${
+              viewMode === 'form' ? 'bg-navy text-white' : 'bg-white text-soft hover:bg-slate-100'
+            }`}
+            title="只顯示新增案件那些欄位（精簡作業檢視），同一份資料、可直接編輯"
+          >
+            📝 我的 Excel
+          </button>
+        </div>
         <input
           type="text"
           value={filter}
@@ -397,6 +438,14 @@ export default function RecordsTable({
             <span className="text-ok">✏️ 可編 {editableFields.size} 欄</span>
           )}
         </div>
+        <button
+          onClick={handleExport}
+          disabled={exporting}
+          className="px-3 py-1 text-xs rounded border border-teal text-teal hover:bg-teal hover:text-white transition disabled:opacity-50"
+          title="匯出此類別全部資料為 Excel（完整欄位，不受畫面 500 列限制）"
+        >
+          {exporting ? '⏳ 匯出中…' : '⬇ 匯出 Excel'}
+        </button>
         {canDeleteActive && (
           <button
             onClick={toggleDeletedView}

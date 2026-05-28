@@ -8,6 +8,7 @@ import {
   AgentsResponse,
 } from '../api/search';
 import { RecordRow } from '../api/records';
+import { exportSearch } from '../api/exports';
 import StatusDot from '../components/StatusDot';
 
 type Mode = 'global' | 'agents';
@@ -46,6 +47,19 @@ export default function SearchPage() {
   const [result, setResult] = useState<SearchResponse | null>(null);
   const [agentResult, setAgentResult] = useState<AgentsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  async function handleExport() {
+    if (!q.trim()) return;
+    setExporting(true);
+    try {
+      await exportSearch(q.trim());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '匯出失敗');
+    } finally {
+      setExporting(false);
+    }
+  }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -129,15 +143,27 @@ export default function SearchPage() {
         {/* Global search results */}
         {mode === 'global' && result && (
           <div>
-            <div className="mb-4 text-sm text-soft">
-              找到 <span className="font-mono text-ink font-bold">{result.total}</span> 筆
-              {Object.keys(result.by_category).length > 0 && (
-                <>
-                  ：{Object.entries(result.by_category)
-                    .sort((a, b) => b[1] - a[1])
-                    .map(([code, n]) => `${code} ${n}`)
-                    .join(' · ')}
-                </>
+            <div className="mb-4 flex items-start gap-3">
+              <div className="text-sm text-soft flex-1">
+                找到 <span className="font-mono text-ink font-bold">{result.total}</span> 筆
+                {Object.keys(result.by_category).length > 0 && (
+                  <>
+                    ：{Object.entries(result.by_category)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([code, n]) => `${code} ${n}`)
+                      .join(' · ')}
+                  </>
+                )}
+              </div>
+              {result.total > 0 && (
+                <button
+                  onClick={handleExport}
+                  disabled={exporting}
+                  className="shrink-0 px-3 py-1 text-xs rounded border border-teal text-teal hover:bg-teal hover:text-white transition disabled:opacity-50"
+                  title="匯出搜尋結果為 Excel（完整欄位）"
+                >
+                  {exporting ? '⏳ 匯出中…' : '⬇ 匯出 Excel'}
+                </button>
               )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
