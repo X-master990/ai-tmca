@@ -33,8 +33,8 @@ COPY app/backend/ ./
 COPY templates/ /var/tmca/templates/
 RUN mkdir -p /var/tmca/output
 
-# 一次性種子用的總表 xlsx
-COPY ["110-115年 總表.xlsx", "/app/seed/總表.xlsx"]
+# 注意：總表 xlsx 含個資，刻意 gitignore、不進映像。
+# 類別/帳號由 seed_all 於開機自動建立；總表資料另由本機直接灌入 Railway DB。
 
 # 前端 build 成果 → 由 FastAPI 提供（main.py 偵測 /app/static）
 COPY --from=frontend /fe/dist /app/static
