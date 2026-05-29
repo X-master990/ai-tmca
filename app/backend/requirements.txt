@@ -22,6 +22,7 @@ openpyxl==3.1.5
 pandas==2.2.3
 python-docx==1.1.2
 docxtpl==0.18.0
+docx-mailmerge2==1.0.1  # 證書正面：Word 合併列印(MERGEFIELD) 依欄位名填值
 
 # Scheduling
 apscheduler==3.10.4

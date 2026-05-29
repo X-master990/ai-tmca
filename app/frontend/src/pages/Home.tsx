@@ -9,6 +9,7 @@ export default function Home() {
   const canSeeRenewals =
     user?.role === 'admin' || user?.role === 'officer_a' || user?.role === 'officer_b';
   const canSeeReports = user?.role === 'admin' || user?.role === 'accountant';
+  const canIssueCert = user?.role === 'admin' || user?.role === 'issuer';
 
   async function logout() {
     try {
@@ -66,6 +67,14 @@ export default function Home() {
               className="bg-white border border-navy text-navy py-3 rounded-lg font-medium hover:bg-cyan transition text-base"
             >
               📈 報表
+            </button>
+          )}
+          {canIssueCert && (
+            <button
+              onClick={() => navigate('/issuance')}
+              className="bg-white border border-navy text-navy py-3 rounded-lg font-medium hover:bg-cyan transition text-base"
+            >
+              📑 核發證書
             </button>
           )}
           {canIssueInvoice && (

@@ -2,6 +2,7 @@ import { Route, Routes } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import Home from './pages/Home';
 import Invoices from './pages/Invoices';
+import Issuance from './pages/Issuance';
 import Login from './pages/Login';
 import Records from './pages/Records';
 import Renewals from './pages/Renewals';
@@ -57,6 +58,14 @@ export default function App() {
         element={
           <ProtectedRoute>
             <Invoices />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/issuance"
+        element={
+          <ProtectedRoute>
+            <Issuance />
           </ProtectedRoute>
         }
       />

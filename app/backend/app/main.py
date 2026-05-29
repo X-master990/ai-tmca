@@ -12,6 +12,7 @@ from app.api.auth import router as auth_router
 from app.api.categories import router as categories_router
 from app.api.exports import router as exports_router
 from app.api.invoices import router as invoices_router
+from app.api.issuance import router as issuance_router
 from app.api.records import router as records_router
 from app.api.renewals import router as renewals_router
 from app.api.reports import router as reports_router
@@ -56,6 +57,7 @@ app.include_router(auth_router)
 app.include_router(categories_router)
 app.include_router(exports_router)
 app.include_router(invoices_router)
+app.include_router(issuance_router)
 app.include_router(records_router)
 app.include_router(renewals_router)
 app.include_router(reports_router)
