@@ -29,6 +29,7 @@ build/
 # Real data (contains PII — never commit)
 *.xlsx
 *.xls
+客戶編號-併號複查清單.txt
 
 # Docker / local data
 pg_data/
