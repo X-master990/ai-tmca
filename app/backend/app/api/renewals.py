@@ -1,7 +1,11 @@
-"""Renewals API — 續約偵測重算 + 月份清單 + 一鍵生成續約行"""
+"""Renewals API — 續約偵測重算 + 月份清單 + 一鍵生成續約行 + 續約函生成"""
 from datetime import date, datetime, timedelta
+from io import BytesIO
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 from sqlalchemy import extract
 from sqlalchemy.orm import Session
 
@@ -11,9 +15,13 @@ from app.database import get_db
 from app.models import AuditLog, Record, User
 from app.schemas.record import RecordOut
 from app.services.customer_no import assign_for_record
+from app.services.renewal_letter import build_prefill, render_letter
 from app.services.renewals import compute_renewal_status
 
 router = APIRouter(prefix="/api/renewals", tags=["renewals"])
+
+DOCX_MEDIA = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+LETTER_ROLES = ("officer_a", "officer_b", "admin")
 
 # 生成續約行時，從舊紀錄複製過來的「可重用」欄位（個案專屬如金額/證號/發票/備註不帶）
 _RENEWAL_CARRY_FIELDS = (
@@ -144,3 +152,92 @@ def generate_renewal(
     compute_renewal_status(db)
     db.refresh(new)
     return new
+
+
+# ────────────────────────────────────────────────────────────────
+# 續約函（電腦伴唱機）— 預填表單資料 + 產生 Word(.docx)
+# ────────────────────────────────────────────────────────────────
+class LetterData(BaseModel):
+    """續約函表單預填值（前端 modal 帶入後可逐欄修改）。"""
+    record_id: int
+    recipient: str
+    issue_date: str
+    pay_deadline: str
+    period_start: str
+    period_end: str
+    business_address: str
+    qty: int
+    amount: int
+
+
+class LetterReq(BaseModel):
+    """產生續約函的請求 — 所見即所印，前端送什麼就印什麼。
+
+    各欄加長度上限：防禦性地擋掉異常大輸入（單請求放大成超大 docx）。
+    """
+    recipient: str = Field("", max_length=500)
+    issue_date: str = Field("", max_length=60)
+    pay_deadline: str = Field("", max_length=60)
+    period_start: str = Field("", max_length=60)
+    period_end: str = Field("", max_length=60)
+    business_address: str = Field("", max_length=500)
+    qty: str = Field("", max_length=40)
+    amount: str = Field("", max_length=40)
+    record_id: int | None = None  # 僅供稽核 / 命名，產檔不依賴它
+
+
+@router.get("/{record_id}/letter-data", response_model=LetterData)
+def renewal_letter_data(
+    record_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_role(*LETTER_ROLES)),
+):
+    """回某筆續約函的表單預填值（受文者/期間/地址/台數/金額/發文日/繳費期限）。"""
+    rec = db.query(Record).filter(Record.id == record_id).first()
+    if not rec or rec.deleted_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到紀錄")
+    return build_prefill(rec)
+
+
+@router.post("/letter")
+def renewal_letter(
+    body: LetterReq,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role(*LETTER_ROLES)),
+):
+    """以表單內容填模板，回傳續約函 .docx（不改動總表資料；有 record_id 則留稽核）。"""
+    try:
+        docx_bytes = render_letter(body.model_dump())
+    except FileNotFoundError:
+        # 模板未部署到 /var/tmca/templates（例：未隨映像打包）→ 回乾淨訊息，不外洩路徑
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "續約函模板尚未就緒，請聯絡管理員",
+        )
+
+    if body.record_id is not None:
+        # 與 letter-data 一致：略過軟刪除紀錄，不為已刪除/不存在者留稽核
+        rec = (
+            db.query(Record)
+            .filter(Record.id == body.record_id, Record.deleted_at.is_(None))
+            .first()
+        )
+        if rec is not None:
+            db.add(AuditLog(
+                record_id=rec.id,
+                user_id=user.id,
+                field_name="__renewal_letter__",
+                old_value=None,
+                new_value=(body.recipient or "")[:200],
+            ))
+            db.commit()
+
+    stem = (body.recipient or (str(body.record_id) if body.record_id else "續約函")).strip()
+    fname = f"續約函_{stem}_{date.today():%Y%m%d}.docx"
+    # safe=''：'/' 等字元一併百分比編碼，符合 RFC 5987（店名含 '/' 時檔名不被截斷）
+    cd = f"attachment; filename=renewal_letter.docx; filename*=UTF-8''{quote(fname, safe='')}"
+    return StreamingResponse(
+        BytesIO(docx_bytes),
+        media_type=DOCX_MEDIA,
+        headers={"Content-Disposition": cd},
+    )

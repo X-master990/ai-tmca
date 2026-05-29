@@ -10,18 +10,22 @@ import {
   RenewalListResponse,
 } from '../api/renewals';
 import StatusDot from '../components/StatusDot';
+import RenewalLetterModal from '../components/RenewalLetterModal';
 
 const MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
 function MiniRow({
   r,
   onGenerate,
+  onLetter,
   busy,
 }: {
   r: RecordRow;
   onGenerate?: (r: RecordRow) => void;
+  onLetter?: (r: RecordRow) => void;
   busy?: boolean;
 }) {
+  const hasActions = !!onGenerate || !!onLetter;
   return (
     <tr className="border-b border-slate-100 hover:bg-cyan/30">
       <td className="px-2 py-1 font-mono text-xs">{r.cert_no || '—'}</td>
@@ -30,16 +34,29 @@ function MiniRow({
       <td className="px-2 py-1 font-mono text-xs">{r.period_end}</td>
       <td className="px-2 py-1 text-xs">{r.officer || '—'}</td>
       <td className="px-2 py-1 text-xs">{r.applicant_mobile || r.applicant_phone || '—'}</td>
-      {onGenerate && (
-        <td className="px-2 py-1 text-xs text-center">
-          <button
-            onClick={() => onGenerate(r)}
-            disabled={busy}
-            className="px-2 py-0.5 bg-teal text-white rounded text-xs hover:bg-navy disabled:opacity-50 transition whitespace-nowrap"
-            title="自動建立一筆「續約」紀錄（期間自舊到期次日起算一年，迄日可改）"
-          >
-            {busy ? '⏳' : '＋ 生成續約行'}
-          </button>
+      {hasActions && (
+        <td className="px-2 py-1 text-xs text-center whitespace-nowrap">
+          <div className="flex gap-1 justify-center">
+            {onGenerate && (
+              <button
+                onClick={() => onGenerate(r)}
+                disabled={busy}
+                className="px-2 py-0.5 bg-teal text-white rounded text-xs hover:bg-navy disabled:opacity-50 transition whitespace-nowrap"
+                title="自動建立一筆「續約」紀錄（期間自舊到期次日起算一年，迄日可改）"
+              >
+                {busy ? '⏳' : '＋ 生成續約行'}
+              </button>
+            )}
+            {onLetter && (
+              <button
+                onClick={() => onLetter(r)}
+                className="px-2 py-0.5 border border-teal text-teal rounded text-xs hover:bg-teal hover:text-white transition whitespace-nowrap"
+                title="填續約資料並下載續約函 Word（電腦伴唱機）"
+              >
+                📄 續約函
+              </button>
+            )}
+          </div>
         </td>
       )}
     </tr>
@@ -52,12 +69,14 @@ function GroupedRows({
   categories,
   colSpan,
   onGenerate,
+  onLetter,
   busyId,
 }: {
   rows: RecordRow[];
   categories: Category[];
   colSpan: number;
   onGenerate?: (r: RecordRow) => void;
+  onLetter?: (r: RecordRow) => void;
   busyId?: number | null;
 }) {
   const known = new Set(categories.map((c) => c.code));
@@ -77,7 +96,13 @@ function GroupedRows({
             </td>
           </tr>
           {g.rs.map((r) => (
-            <MiniRow key={r.id} r={r} onGenerate={onGenerate} busy={busyId === r.id} />
+            <MiniRow
+              key={r.id}
+              r={r}
+              onGenerate={onGenerate}
+              onLetter={onLetter}
+              busy={busyId === r.id}
+            />
           ))}
         </Fragment>
       ))}
@@ -100,6 +125,7 @@ export default function Renewals() {
   const [recomputeMsg, setRecomputeMsg] = useState<string | null>(null);
   const [genBusyId, setGenBusyId] = useState<number | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [letterFor, setLetterFor] = useState<RecordRow | null>(null);
 
   async function handleExport() {
     setExporting(true);
@@ -305,6 +331,7 @@ export default function Renewals() {
                       categories={cats}
                       colSpan={7}
                       onGenerate={handleGenerate}
+                      onLetter={setLetterFor}
                       busyId={genBusyId}
                     />
                   </tbody>
@@ -332,10 +359,16 @@ export default function Renewals() {
                       <th className="px-2 py-2 text-left">到期日</th>
                       <th className="px-2 py-2 text-left">承辦</th>
                       <th className="px-2 py-2 text-left">聯絡</th>
+                      <th className="px-2 py-2 text-center">操作</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <GroupedRows rows={data.renewed} categories={cats} colSpan={6} />
+                    <GroupedRows
+                      rows={data.renewed}
+                      categories={cats}
+                      colSpan={7}
+                      onLetter={setLetterFor}
+                    />
                   </tbody>
                 </table>
               )}
@@ -343,6 +376,10 @@ export default function Renewals() {
           </>
         )}
       </div>
+
+      {letterFor && (
+        <RenewalLetterModal record={letterFor} onClose={() => setLetterFor(null)} />
+      )}
     </div>
   );
 }
